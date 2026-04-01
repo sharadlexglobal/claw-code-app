@@ -8,9 +8,9 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel
@@ -375,6 +375,102 @@ def agent_file_content(session_id: str, path: str = Query(...)):
         return {"path": path, "content": content[:50000], "size": file_path.stat().st_size}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Live Preview ─────────────────────────────────────────────────────────────
+
+
+@app.get("/agent/preview/{session_id}")
+def agent_preview(session_id: str, file: str = Query("index.html")):
+    """Serve an HTML file from the workspace for live preview.
+
+    Finds index.html or the first .html file in the workspace.
+    Rewrites relative asset paths to serve via the API.
+    """
+    session = get_agent_session_data(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    workspace = Path(session.workspace)
+
+    # Find the HTML file
+    target = workspace / file
+    if not target.exists():
+        # Try to find any HTML file
+        html_files = list(workspace.rglob("*.html"))
+        if not html_files:
+            return HTMLResponse("<html><body><h2>No HTML files found in workspace</h2></body></html>")
+        target = html_files[0]
+        file = str(target.relative_to(workspace))
+
+    if not str(target.resolve()).startswith(str(workspace.resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    content = target.read_text(errors="replace")
+
+    # Inject a <base> tag so relative CSS/JS/image paths resolve via our asset endpoint
+    base_url = f"/agent/asset/{session_id}/"
+    if "<head>" in content.lower():
+        content = content.replace("<head>", f'<head><base href="{base_url}">', 1)
+        content = content.replace("<HEAD>", f'<HEAD><base href="{base_url}">', 1)
+
+    return HTMLResponse(content)
+
+
+@app.get("/agent/asset/{session_id}/{path:path}")
+def agent_asset(session_id: str, path: str):
+    """Serve any asset (CSS, JS, images) from the workspace."""
+    session = get_agent_session_data(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    file_path = Path(session.workspace) / path
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if not str(file_path.resolve()).startswith(str(Path(session.workspace).resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Determine content type
+    suffix = file_path.suffix.lower()
+    content_types = {
+        ".html": "text/html", ".css": "text/css", ".js": "application/javascript",
+        ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml",
+        ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2",
+        ".ttf": "font/ttf",
+    }
+    ct = content_types.get(suffix, "application/octet-stream")
+
+    if ct.startswith("text") or ct == "application/javascript" or ct == "application/json":
+        return Response(content=file_path.read_text(errors="replace"), media_type=ct)
+    else:
+        return Response(content=file_path.read_bytes(), media_type=ct)
+
+
+@app.get("/agent/preview-files/{session_id}")
+def agent_preview_files(session_id: str):
+    """List all previewable files (HTML, images, etc.) in the workspace."""
+    session = get_agent_session_data(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    workspace = Path(session.workspace)
+    if not workspace.exists():
+        return {"html_files": [], "all_files": []}
+
+    previewable = {".html", ".htm"}
+    html_files = []
+    all_files = []
+
+    for f in workspace.rglob("*"):
+        if f.is_file():
+            rel = str(f.relative_to(workspace))
+            all_files.append(rel)
+            if f.suffix.lower() in previewable:
+                html_files.append(rel)
+
+    return {"html_files": html_files, "all_files": all_files}
 
 
 # ── Static Files & UI ───────────────────────────────────────────────────────
