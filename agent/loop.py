@@ -144,12 +144,50 @@ def _extract_json_objects(text: str) -> list[dict]:
     return objects
 
 
+def _extract_write_file_raw(text: str) -> list[dict]:
+    """Extract write_file calls even when the content field has broken JSON
+    (e.g. unescaped double-quotes from HTML attributes like href="...").
+
+    Looks for the pattern: {"name": "write_file", "arguments": {"file_path": "X", "content": "..."}}
+    and extracts the content by matching the closing "}} pattern rather than relying on json.loads.
+    """
+    calls = []
+    # Match the preamble up to the opening quote of content
+    pattern = re.compile(
+        r'\{\s*"name"\s*:\s*"write_file"\s*,\s*"arguments"\s*:\s*\{\s*"file_path"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"',
+        re.DOTALL,
+    )
+    for match in pattern.finditer(text):
+        file_path = match.group(1)
+        content_start = match.end()  # right after the opening " of content value
+
+        # Find the closing of the JSON object: look for "}} or " } }
+        rest = text[content_start:]
+        end = re.search(r'"\s*\}\s*\}', rest)
+        if not end:
+            continue
+        raw_content = rest[:end.start()]
+
+        # Unescape JSON string escapes
+        content = raw_content.replace('\\n', '\n').replace('\\t', '\t').replace('\\\\"', '"').replace('\\\\', '\\')
+        # Also handle \" that was just a single-level escape
+        content = content.replace('\\"', '"')
+
+        calls.append({
+            "name": "write_file",
+            "arguments": {"file_path": file_path, "content": content},
+        })
+    return calls
+
+
 def parse_tool_calls(text: str) -> list[dict]:
     """Extract tool calls from the assistant's response text.
 
     Tries multiple strategies:
     1. <tool_call> XML tags (ideal)
-    2. Any JSON object with "name" matching a known tool
+    2. Raw write_file extraction (handles broken JSON from unescaped HTML quotes)
+    3. Any JSON object with "name" matching a known tool
+    4. Markdown code blocks as write_file calls (last resort)
     """
     calls = []
 
@@ -168,17 +206,29 @@ def parse_tool_calls(text: str) -> list[dict]:
     if calls:
         return calls
 
-    # Strategy 2: Find any JSON object that looks like a tool call
+    # Strategy 2: Raw write_file extraction + JSON objects for other tools
+    # First, grab write_file calls using the raw extractor (handles broken JSON)
+    write_calls = _extract_write_file_raw(text)
+    write_paths = {c["arguments"]["file_path"] for c in write_calls}
+
+    # Then grab other tool calls via JSON parsing
+    json_calls = []
     for obj in _extract_json_objects(text):
         name = obj.get("name", "")
         if name in TOOL_NAMES:
             arguments = obj.get("arguments", {})
             if not arguments:
                 arguments = {k: v for k, v in obj.items() if k != "name"}
-            calls.append({"name": name, "arguments": arguments})
+            # Skip write_file calls already captured by raw extractor
+            if name == "write_file" and arguments.get("file_path") in write_paths:
+                continue
+            json_calls.append({"name": name, "arguments": arguments})
 
-    if calls:
-        return calls
+    combined = write_calls + json_calls
+    if combined:
+        if write_calls:
+            print(f"[AGENT] Raw extractor found {len(write_calls)} write_file calls: {list(write_paths)}")
+        return combined
 
     # Strategy 3: Extract markdown code blocks as write_file calls (last resort)
     calls = extract_code_blocks_as_tools(text)
