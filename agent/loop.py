@@ -27,45 +27,60 @@ ORBIT_BASE_URL = os.environ.get("ORBIT_BASE_URL", "https://api.orbit-provider.co
 ORBIT_API_KEY = os.environ.get("ORBIT_API_KEY", "")
 DEFAULT_MODEL = os.environ.get("ORBIT_MODEL", "claude-sonnet-4-6")
 MAX_ITERATIONS = int(os.environ.get("CLAW_MAX_ITERATIONS", "10"))
-MAX_TOKENS = int(os.environ.get("CLAW_MAX_TOKENS", "8192"))
+MAX_TOKENS = int(os.environ.get("CLAW_MAX_TOKENS", "4096"))
 
-AGENT_SYSTEM_PROMPT = """You are Claw Code, an autonomous AI coding agent. You EXECUTE tasks by calling tools.
+AGENT_SYSTEM_PROMPT = """You are Claw Code, an autonomous AI coding agent running in a sandboxed workspace.
 
-CRITICAL: You MUST use <tool_call> XML tags to call tools. This is NOT optional. Without these tags, NOTHING happens.
+# ABSOLUTE RULE — READ THIS FIRST
 
-# Tool Call Format (MANDATORY)
+You can ONLY affect the world through tool calls. Text you write is JUST a message to the user — it creates NO files, runs NO commands, changes NOTHING.
 
-<tool_call>{{"name": "TOOL_NAME", "arguments": {{"key": "value"}}}}</tool_call>
+If you want to create index.html, you MUST call write_file. Typing HTML code in your response does absolutely nothing. The code vanishes. The user sees text, not a website.
+
+NEVER write code as text. NEVER use markdown code blocks to show code. ALWAYS use write_file to create files.
+
+# How to Call Tools
+
+Wrap each call in XML tags exactly like this:
+
+<tool_call>{{"name": "write_file", "arguments": {{"file_path": "index.html", "content": "<html>...</html>"}}}}</tool_call>
+
+You can make multiple tool calls in one response.
 
 # Available Tools
 
-- write_file: {{"name":"write_file","arguments":{{"file_path":"path","content":"file content"}}}}
-- read_file: {{"name":"read_file","arguments":{{"file_path":"path"}}}}
-- edit_file: {{"name":"edit_file","arguments":{{"file_path":"path","old_string":"old","new_string":"new"}}}}
-- bash: {{"name":"bash","arguments":{{"command":"shell command here"}}}}
-- list_directory: {{"name":"list_directory","arguments":{{"directory":"."}}}}
-- search_files: {{"name":"search_files","arguments":{{"pattern":"regex","directory":"."}}}}
+1. write_file(file_path, content) — Create/overwrite a file
+2. read_file(file_path) — Read a file
+3. edit_file(file_path, old_string, new_string) — Edit part of a file
+4. bash(command) — Run a shell command
+5. list_directory(directory) — List files
+6. search_files(pattern, directory) — Search file contents
 
-# Rules
-1. EVERY action MUST be a <tool_call> block. Text alone does NOTHING.
-2. Use multiple <tool_call> blocks in one response.
-3. After writing code, ALWAYS run it with bash to verify.
-4. If something fails, fix it and retry.
-5. Install dependencies via bash (pip install, npm install, etc.)
-6. Write complete, production-quality code.
+# Strategy for Building Websites/Apps
+
+IMPORTANT: Break large tasks into MULTIPLE tool calls across iterations. Do NOT try to write everything in one giant response.
+
+For a website:
+1. First call: write_file index.html with the HTML structure
+2. Second call: write_file styles.css with the CSS
+3. Third call: write_file script.js with the JavaScript
+4. Fourth call: bash to verify files exist
+
+Keep each file under 200 lines. Split large files into separate tool calls.
 
 # Workspace: {workspace_root}
 
 # Example
 
-User: Create and run a hello world Python script
+User: Create a landing page
 
-Response:
-I'll create hello.py and run it.
+I'll create the HTML file first.
 
-<tool_call>{{"name": "write_file", "arguments": {{"file_path": "hello.py", "content": "print('Hello World!')\\n"}}}}</tool_call>
+<tool_call>{{"name": "write_file", "arguments": {{"file_path": "index.html", "content": "<!DOCTYPE html>\\n<html>\\n<head>\\n<title>Landing Page</title>\\n<link rel=\\"stylesheet\\" href=\\"styles.css\\">\\n</head>\\n<body>\\n<h1>Welcome</h1>\\n</body>\\n</html>"}}}}</tool_call>
 
-<tool_call>{{"name": "bash", "arguments": {{"command": "python3 hello.py"}}}}</tool_call>
+Now the CSS:
+
+<tool_call>{{"name": "write_file", "arguments": {{"file_path": "styles.css", "content": "body {{ background: #1a1a2e; color: white; }}\\nh1 {{ text-align: center; }}"}}}}</tool_call>
 """
 
 # ── Parse Tool Calls from Text ───────────────────────────────────────────────
@@ -141,12 +156,66 @@ def parse_tool_calls(text: str) -> list[dict]:
                 arguments = {k: v for k, v in obj.items() if k != "name"}
             calls.append({"name": name, "arguments": arguments})
 
+    if calls:
+        return calls
+
+    # Strategy 3: Extract markdown code blocks as write_file calls (last resort)
+    calls = extract_code_blocks_as_tools(text)
+    if calls:
+        print(f"[AGENT] Fallback: extracted {len(calls)} code blocks as write_file calls")
+
     return calls
 
 
 def strip_tool_calls(text: str) -> str:
     """Remove tool_call blocks from text to get the prose."""
-    return TOOL_CALL_PATTERN.sub('', text).strip()
+    cleaned = TOOL_CALL_PATTERN.sub('', text)
+    # Also strip raw JSON tool calls that the brace parser found
+    for obj in _extract_json_objects(text):
+        name = obj.get("name", "")
+        if name in TOOL_NAMES and "arguments" in obj:
+            raw = json.dumps(obj)
+            # Try to remove the JSON from the prose
+            cleaned = cleaned.replace(raw, '')
+    return cleaned.strip()
+
+
+CODE_BLOCK_PATTERN = re.compile(
+    r'```(html?|css|javascript|js|python|py|typescript|ts)\s*\n(.*?)```',
+    re.DOTALL | re.IGNORECASE
+)
+
+LANG_TO_EXT = {
+    'html': '.html', 'htm': '.html',
+    'css': '.css',
+    'javascript': '.js', 'js': '.js',
+    'python': '.py', 'py': '.py',
+    'typescript': '.ts', 'ts': '.ts',
+}
+
+def extract_code_blocks_as_tools(text: str) -> list[dict]:
+    """Last-resort: extract markdown code blocks and convert to write_file calls."""
+    calls = []
+    seen_exts = {}
+    for match in CODE_BLOCK_PATTERN.finditer(text):
+        lang = match.group(1).lower()
+        content = match.group(2).strip()
+        if len(content) < 50:  # Skip tiny snippets
+            continue
+        ext = LANG_TO_EXT.get(lang, f'.{lang}')
+        # Generate filename
+        count = seen_exts.get(ext, 0)
+        if ext == '.html' and count == 0:
+            fname = 'index.html'
+        elif ext == '.css' and count == 0:
+            fname = 'styles.css'
+        elif ext == '.js' and count == 0:
+            fname = 'script.js'
+        else:
+            fname = f'file{count}{ext}'
+        seen_exts[ext] = count + 1
+        calls.append({"name": "write_file", "arguments": {"file_path": fname, "content": content}})
+    return calls
 
 
 # ── Data Structures ──────────────────────────────────────────────────────────
@@ -405,6 +474,23 @@ def run_agent_stream(
             yield {"event": "text", "content": prose}
 
         if not tool_calls:
+            # Check if model dumped code as text instead of using tools
+            has_code = '```' in assistant_text or '<html' in assistant_text.lower() or 'function ' in assistant_text
+            if has_code and len(assistant_text) > 500 and iterations <= 2:
+                # Model wrote code as text — force it to use tools
+                print(f"[AGENT] Code-as-text detected ({len(assistant_text)} chars). Forcing tool usage.")
+                session.messages.append({
+                    "role": "user",
+                    "content": "STOP. You wrote code as text — that does NOTHING. No files were created. "
+                    "You MUST use <tool_call> tags to create files. Here's exactly what to do:\n\n"
+                    "1. Take the code you just wrote\n"
+                    "2. Put it inside a write_file tool call:\n"
+                    "<tool_call>{\"name\": \"write_file\", \"arguments\": {\"file_path\": \"index.html\", \"content\": \"YOUR HTML HERE\"}}</tool_call>\n\n"
+                    "Do this NOW. Create the files using write_file tool calls.",
+                })
+                yield {"event": "text", "content": "(Auto-correcting: forcing agent to use tool calls...)"}
+                continue  # retry the loop
+
             yield {
                 "event": "done",
                 "iterations": iterations,
