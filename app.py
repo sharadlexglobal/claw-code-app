@@ -335,7 +335,7 @@ def agent_session_delete(session_id: str):
 
 @app.get("/agent/files/{session_id}")
 def agent_files(session_id: str):
-    """List files in an agent session's workspace."""
+    """List ALL files in an agent session's workspace (recursive)."""
     session = get_agent_session_data(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -345,13 +345,25 @@ def agent_files(session_id: str):
         return {"entries": []}
 
     entries = []
+    # Recursive listing — find ALL files in workspace
+    for item in sorted(workspace.rglob("*")):
+        if item.is_file():
+            rel = str(item.relative_to(workspace))
+            entries.append({
+                "name": item.name,
+                "path": rel,
+                "type": "file",
+                "size": item.stat().st_size,
+            })
+    # Also add top-level directories for context
     for item in sorted(workspace.iterdir()):
-        entries.append({
-            "name": item.name,
-            "path": item.name,
-            "type": "directory" if item.is_dir() else "file",
-            "size": item.stat().st_size if item.is_file() else None,
-        })
+        if item.is_dir():
+            entries.insert(0, {
+                "name": item.name,
+                "path": item.name,
+                "type": "directory",
+                "size": None,
+            })
     return {"entries": entries}
 
 

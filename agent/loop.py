@@ -391,6 +391,14 @@ def run_agent_stream(
         tool_calls = parse_tool_calls(assistant_text)
         prose = strip_tool_calls(assistant_text)
 
+        # Debug logging
+        print(f"[AGENT] Iteration {iterations}: text={len(assistant_text)} chars, tool_calls={len(tool_calls)}, prose={len(prose)} chars")
+        if tool_calls:
+            for tc in tool_calls:
+                print(f"[AGENT]   Tool: {tc['name']} args_keys={list(tc['arguments'].keys())}")
+        else:
+            print(f"[AGENT]   No tool calls found. Raw text (first 500): {assistant_text[:500]}")
+
         session.messages.append({"role": "assistant", "content": assistant_text})
 
         if prose:
@@ -412,6 +420,7 @@ def run_agent_stream(
             yield {"event": "tool_call", "tool": tc["name"], "arguments": tc["arguments"]}
 
             result = execute_tool(tc["name"], tc["arguments"])
+            print(f"[AGENT]   Result: {tc['name']} -> status={result.get('status', result.get('error', 'unknown'))} file_path={result.get('file_path', 'N/A')}")
 
             yield {"event": "tool_result", "tool": tc["name"], "result": result}
 

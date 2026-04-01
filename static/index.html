@@ -332,27 +332,31 @@ async function refreshFiles(forcePreviewReload) {
   try {
     const res = await fetch(`${API}/agent/files/${sessionId}`);
     const data = await res.json();
+    console.log('[Claw] refreshFiles response:', JSON.stringify(data));
     if (data.entries && data.entries.length > 0) {
       const filesDiv = document.getElementById('previewFiles');
       filesDiv.style.display = 'block';
       filesDiv.innerHTML = data.entries.map(e => {
-        const isHtml = e.name.endsWith('.html') || e.name.endsWith('.htm');
-        return `<div class="pf-item ${isHtml ? 'html' : ''}" onclick="${isHtml ? `loadPreview('${e.name}', true)` : `viewFileInCode('${e.name}')`}">
+        // Use path (includes subdirs) for detection, not just name
+        const isHtml = (e.path || e.name).endsWith('.html') || (e.path || e.name).endsWith('.htm');
+        const displayPath = e.path || e.name;
+        return `<div class="pf-item ${isHtml ? 'html' : ''}" onclick="${isHtml ? `loadPreview('${displayPath}', true)` : `viewFileInCode('${displayPath}')`}">
           <span>${e.type === 'directory' ? '&#128193;' : (isHtml ? '&#127760;' : '&#128196;')}</span>
-          <span>${e.name}</span>
-          ${e.size != null ? `<span style="margin-left:auto;opacity:.5">${e.size}b</span>` : ''}
+          <span>${displayPath}</span>
+          ${e.size != null ? `<span style="margin-left:auto;opacity:.5">${(e.size/1024).toFixed(1)}kb</span>` : ''}
         </div>`;
       }).join('');
       document.getElementById('statFiles').textContent = data.entries.filter(e => e.type === 'file').length;
 
-      // Auto-load preview for HTML files
-      const htmlFile = data.entries.find(e => e.name === 'index.html') || data.entries.find(e => e.name.endsWith('.html'));
+      // Auto-load preview for HTML files — check path (recursive) not just name
+      const htmlFile = data.entries.find(e => (e.path||'').endsWith('index.html'))
+                    || data.entries.find(e => (e.path||e.name).endsWith('.html'));
+      console.log('[Claw] HTML file found:', htmlFile);
       if (htmlFile) {
-        // Always load/refresh preview when we find HTML files
-        loadPreview(htmlFile.name, forcePreviewReload || false);
+        loadPreview(htmlFile.path || htmlFile.name, forcePreviewReload || false);
       }
     }
-  } catch(e) {}
+  } catch(e) { console.error('[Claw] refreshFiles error:', e); }
 }
 
 async function viewFileInCode(path) {
@@ -462,10 +466,12 @@ async function sendMessage() {
 
         let event;
         try { event = JSON.parse(raw); } catch(e) { continue; }
+        console.log('[Claw] SSE event:', event.event, event);
 
         switch (event.event) {
           case 'session':
             sessionId = event.session_id;
+            console.log('[Claw] Session ID set:', sessionId);
             break;
 
           case 'thinking':
@@ -488,19 +494,19 @@ async function sendMessage() {
 
           case 'tool_result':
             addTool(event.tool, pendingToolArgs[event.tool] || event.arguments || {}, event.result || {});
-            // After write_file with HTML, refresh preview
+            console.log('[Claw] tool_result:', event.tool, 'result:', event.result);
+            // After write_file, check for HTML or any web file
             if (event.tool === 'write_file') {
               const fp = (event.result && event.result.file_path) || '';
+              console.log('[Claw] write_file path:', fp);
               if (fp.endsWith('.html') || fp.endsWith('.htm')) {
                 htmlFilesWritten.push(fp);
-                // Refresh preview every time an HTML file is written
+                console.log('[Claw] HTML written! Loading preview for:', fp);
                 setTimeout(() => loadPreview(fp, true), 300);
               }
             }
-            // After bash commands, also check for new files (agent might create HTML via bash)
-            if (event.tool === 'bash' && event.result && !event.result.error) {
-              setTimeout(() => refreshFiles(true), 500);
-            }
+            // After ANY tool completes, refresh file list (catches bash-created files too)
+            setTimeout(() => refreshFiles(true), 500);
             break;
 
           case 'done':
