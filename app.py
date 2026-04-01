@@ -421,10 +421,24 @@ def agent_preview(session_id: str, file: str = Query("index.html")):
     content = target.read_text(errors="replace")
 
     # Inject a <base> tag so relative CSS/JS/image paths resolve via our asset endpoint
-    base_url = f"/agent/asset/{session_id}/"
-    if "<head>" in content.lower():
-        content = content.replace("<head>", f'<head><base href="{base_url}">', 1)
-        content = content.replace("<HEAD>", f'<HEAD><base href="{base_url}">', 1)
+    # IMPORTANT: include the subdirectory of the HTML file so relative paths resolve correctly
+    file_dir = str(Path(file).parent)
+    if file_dir == ".":
+        base_url = f"/agent/asset/{session_id}/"
+    else:
+        base_url = f"/agent/asset/{session_id}/{file_dir}/"
+    base_tag = f'<base href="{base_url}">'
+    if "<head>" in content:
+        content = content.replace("<head>", f"<head>{base_tag}", 1)
+    elif "<HEAD>" in content:
+        content = content.replace("<HEAD>", f"<HEAD>{base_tag}", 1)
+    elif "<html" in content.lower():
+        # No <head> tag — inject one after <html...>
+        import re as _re
+        content = _re.sub(r'(<html[^>]*>)', rf'\1<head>{base_tag}</head>', content, count=1, flags=_re.IGNORECASE)
+    else:
+        # Bare HTML — prepend base tag
+        content = f"{base_tag}\n{content}"
 
     return HTMLResponse(content)
 
