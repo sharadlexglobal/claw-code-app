@@ -94,17 +94,37 @@ TOOL_NAMES = {"read_file", "write_file", "edit_file", "bash", "list_directory", 
 
 
 def _extract_json_objects(text: str) -> list[dict]:
-    """Extract all valid JSON objects from text using brace matching."""
+    """Extract all valid JSON objects from text using string-aware brace matching.
+
+    Unlike naive brace counting, this skips over { and } inside JSON strings
+    (e.g. CSS rules like ``body { margin: 0; }`` inside a "content" field).
+    """
     objects = []
     i = 0
     while i < len(text):
         if text[i] == '{':
             depth = 0
+            in_string = False
+            escape_next = False
             start = i
+            found = False
             for j in range(i, len(text)):
-                if text[j] == '{':
+                ch = text[j]
+                if escape_next:
+                    escape_next = False
+                    continue
+                if ch == '\\' and in_string:
+                    escape_next = True
+                    continue
+                if ch == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                # Outside any string — count braces
+                if ch == '{':
                     depth += 1
-                elif text[j] == '}':
+                elif ch == '}':
                     depth -= 1
                     if depth == 0:
                         raw = text[start:j + 1]
@@ -115,8 +135,9 @@ def _extract_json_objects(text: str) -> list[dict]:
                         except json.JSONDecodeError:
                             pass
                         i = j + 1
+                        found = True
                         break
-            else:
+            if not found:
                 i += 1
         else:
             i += 1
