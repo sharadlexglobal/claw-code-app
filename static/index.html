@@ -401,11 +401,14 @@ function addTool(name, args, result) {
   document.getElementById('statTools').textContent = totalTools;
 }
 
-function showThinking(t) {
-  const d = document.createElement('div');
-  d.className = 'thinking'; d.id = 'thinkingIndicator';
-  d.innerHTML = `<div class="spinner"></div> ${t||'Agent working...'}`;
-  messages.appendChild(d);
+function updateThinking(t) {
+  let el = document.getElementById('thinkingIndicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'thinking'; el.id = 'thinkingIndicator';
+    messages.appendChild(el);
+  }
+  el.innerHTML = `<div class="spinner"></div> ${t||'Agent working...'}`;
   messages.scrollTop = messages.scrollHeight;
 }
 function hideThinking() { const e = document.getElementById('thinkingIndicator'); if(e) e.remove(); }
@@ -425,37 +428,106 @@ async function sendMessage() {
   input.style.height = 'auto';
 
   addMsg('user', escapeHtml(text));
-  showThinking('Agent is thinking and executing...');
+  updateThinking('Connecting to agent...');
   setStatus('Working...', true);
 
   try {
-    const res = await fetch(`${API}/agent/run`, {
+    // Use streaming endpoint for real-time feedback
+    const res = await fetch(`${API}/agent/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text, session_id: sessionId }),
     });
-    const data = await res.json();
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let textParts = [];
+    let iterCount = 0;
+    let hasRefreshedPreview = false;
+    let pendingToolArgs = {}; // Store args from tool_call until tool_result comes
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+
+        let event;
+        try { event = JSON.parse(raw); } catch(e) { continue; }
+
+        switch (event.event) {
+          case 'session':
+            sessionId = event.session_id;
+            break;
+
+          case 'thinking':
+            iterCount = event.iteration || iterCount;
+            updateThinking(`Iteration ${iterCount} — thinking...`);
+            document.getElementById('statIter').textContent = iterCount;
+            break;
+
+          case 'text':
+            if (event.content) textParts.push(event.content);
+            // Show partial text live
+            hideThinking();
+            updateThinking(`Iteration ${iterCount} — writing response...`);
+            break;
+
+          case 'tool_call':
+            pendingToolArgs[event.tool] = event.arguments || {};
+            updateThinking(`Iteration ${iterCount} — running <b style="color:var(--orange)">${event.tool}</b>...`);
+            break;
+
+          case 'tool_result':
+            addTool(event.tool, pendingToolArgs[event.tool] || event.arguments || {}, event.result || {});
+            // After write_file with HTML, refresh preview immediately
+            if (event.tool === 'write_file' && !hasRefreshedPreview) {
+              const fp = (event.result && event.result.file_path) || '';
+              if (fp.endsWith('.html') || fp.endsWith('.htm')) {
+                hasRefreshedPreview = true;
+                setTimeout(() => refreshFiles(), 200);
+              }
+            }
+            break;
+
+          case 'done':
+            if (event.usage) {
+              document.getElementById('statTokens').textContent =
+                ((event.usage.input_tokens||0) + (event.usage.output_tokens||0)).toLocaleString();
+            }
+            break;
+
+          case 'error':
+            hideThinking();
+            addMsg('assistant', `<span style="color:var(--red)">Error: ${escapeHtml(event.message || 'Unknown error')}</span>`);
+            break;
+
+          case 'max_iterations':
+            textParts.push('\n\n(Reached max iterations — task may be incomplete)');
+            break;
+        }
+      }
+    }
+
     hideThinking();
 
-    if (data.error) {
-      addMsg('assistant', `<span style="color:var(--red)">Error: ${escapeHtml(data.error)}</span>`);
-    } else {
-      sessionId = data.session_id;
-
-      if (data.tool_calls) {
-        for (const tc of data.tool_calls) addTool(tc.tool, tc.arguments, tc.result);
-      }
-      if (data.response) addMsg('assistant', formatMd(data.response));
-
-      document.getElementById('statIter').textContent = data.iterations || 0;
-      if (data.usage) {
-        document.getElementById('statTokens').textContent =
-          ((data.usage.input_tokens||0) + (data.usage.output_tokens||0)).toLocaleString();
-      }
-
-      // Refresh files and auto-load preview
-      await refreshFiles();
+    // Show final response text
+    const finalText = textParts.join('\n').trim();
+    if (finalText) {
+      addMsg('assistant', formatMd(finalText));
     }
+
+    // Final file/preview refresh
+    await refreshFiles();
+
   } catch (err) {
     hideThinking();
     addMsg('assistant', `<span style="color:var(--red)">Error: ${escapeHtml(err.message)}</span>`);
