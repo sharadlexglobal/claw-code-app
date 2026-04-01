@@ -157,16 +157,20 @@ def _extract_write_file_raw(text: str) -> list[dict]:
         r'\{\s*"name"\s*:\s*"write_file"\s*,\s*"arguments"\s*:\s*\{\s*"file_path"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"',
         re.DOTALL,
     )
+    print(f"[AGENT][RAW] Searching for write_file patterns in {len(text)} chars of text")
     for match in pattern.finditer(text):
         file_path = match.group(1)
         content_start = match.end()  # right after the opening " of content value
 
         # Find the closing of the JSON object: look for "}} or " } }
+        # Use a non-greedy approach: find the FIRST "}} that closes this object
         rest = text[content_start:]
         end = re.search(r'"\s*\}\s*\}', rest)
         if not end:
+            print(f"[AGENT][RAW] Found write_file {file_path} but no closing pattern")
             continue
         raw_content = rest[:end.start()]
+        print(f"[AGENT][RAW] Extracted write_file {file_path}: content_len={len(raw_content)}, starts_with={repr(raw_content[:80])}")
 
         # Unescape JSON string escapes
         content = raw_content.replace('\\n', '\n').replace('\\t', '\t').replace('\\\\"', '"').replace('\\\\', '\\')
@@ -177,6 +181,7 @@ def _extract_write_file_raw(text: str) -> list[dict]:
             "name": "write_file",
             "arguments": {"file_path": file_path, "content": content},
         })
+    print(f"[AGENT][RAW] Total extracted: {len(calls)} write_file calls")
     return calls
 
 

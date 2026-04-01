@@ -107,7 +107,7 @@ def _module_dict(m: PortingModule) -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    return {"status": "healthy", "version": "2.1.0"}
 
 
 # ── Manifest ─────────────────────────────────────────────────────────────────
