@@ -27,7 +27,7 @@ ORBIT_BASE_URL = os.environ.get("ORBIT_BASE_URL", "https://api.orbit-provider.co
 ORBIT_API_KEY = os.environ.get("ORBIT_API_KEY", "")
 DEFAULT_MODEL = os.environ.get("ORBIT_MODEL", "claude-sonnet-4-6")
 MAX_ITERATIONS = int(os.environ.get("CLAW_MAX_ITERATIONS", "10"))
-MAX_TOKENS = int(os.environ.get("CLAW_MAX_TOKENS", "4096"))
+MAX_TOKENS = int(os.environ.get("CLAW_MAX_TOKENS", "16000"))
 
 AGENT_SYSTEM_PROMPT = """You are Claw Code, an autonomous AI coding agent running in a sandboxed workspace.
 
@@ -474,9 +474,27 @@ def run_agent_stream(
             yield {"event": "text", "content": prose}
 
         if not tool_calls:
-            # Check if model dumped code as text instead of using tools
-            has_code = '```' in assistant_text or '<html' in assistant_text.lower() or 'function ' in assistant_text
-            if has_code and len(assistant_text) > 500 and iterations <= 2:
+            # Check 1: Truncated tool call (model started JSON but hit token limit)
+            has_truncated_tool = '"name": "write_file"' in assistant_text or '"name":"write_file"' in assistant_text
+            # Check 2: Code dumped as markdown text
+            has_code = '```' in assistant_text or '<html' in assistant_text.lower() or 'function ' in assistant_text or '<div' in assistant_text.lower() or 'body {' in assistant_text
+
+            if has_truncated_tool and iterations <= 3:
+                # Model tried to use tool calls but response was cut off by token limit
+                print(f"[AGENT] Truncated tool call detected. Asking model to retry with smaller files.")
+                session.messages.append({
+                    "role": "user",
+                    "content": "Your response was cut off — the write_file tool call was incomplete and could NOT be executed. No files were created.\n\n"
+                    "The file content was TOO LONG for a single response. You MUST split it:\n"
+                    "1. First, write index.html with JUST the HTML structure (link to external CSS)\n"
+                    "2. Then write styles.css with the CSS\n"
+                    "3. Then write script.js if needed\n\n"
+                    "Keep each file UNDER 150 lines. Use <tool_call> tags. Start NOW with index.html.",
+                })
+                yield {"event": "text", "content": "(Response was cut off — retrying with smaller files...)"}
+                continue
+
+            elif has_code and len(assistant_text) > 500 and iterations <= 3:
                 # Model wrote code as text — force it to use tools
                 print(f"[AGENT] Code-as-text detected ({len(assistant_text)} chars). Forcing tool usage.")
                 session.messages.append({
@@ -486,10 +504,10 @@ def run_agent_stream(
                     "1. Take the code you just wrote\n"
                     "2. Put it inside a write_file tool call:\n"
                     "<tool_call>{\"name\": \"write_file\", \"arguments\": {\"file_path\": \"index.html\", \"content\": \"YOUR HTML HERE\"}}</tool_call>\n\n"
-                    "Do this NOW. Create the files using write_file tool calls.",
+                    "Do this NOW. Create the files using write_file tool calls. Keep each file under 150 lines.",
                 })
                 yield {"event": "text", "content": "(Auto-correcting: forcing agent to use tool calls...)"}
-                continue  # retry the loop
+                continue
 
             yield {
                 "event": "done",
