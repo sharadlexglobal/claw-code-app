@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claw Code</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+    --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922;
+    --orange: #f0883e; --purple: #bc8cff; --border: #30363d;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 16px; }
+  .header .logo { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .header .model-badge { font-size: 11px; background: var(--bg3); color: var(--purple); padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); }
+  .header .status { margin-left: auto; font-size: 12px; color: var(--green); display: flex; align-items: center; gap: 6px; }
+  .header .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
+  /* Main */
+  .main { flex: 1; display: flex; overflow: hidden; }
+
+  /* Chat Panel */
+  .chat-panel { flex: 1; display: flex; flex-direction: column; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px; }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+  .msg { margin-bottom: 16px; animation: fadeIn .3s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .msg.user .bubble { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px 12px 4px 12px; padding: 12px 16px; max-width: 80%; margin-left: auto; }
+  .msg.assistant .bubble { max-width: 90%; }
+  .msg .role { font-size: 11px; color: var(--text2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .msg.user .role { text-align: right; }
+  .msg .content { font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }
+  .msg .content code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .msg .content pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 8px 0; overflow-x: auto; font-size: 13px; }
+  .msg .content pre code { background: none; padding: 0; }
+
+  /* Tool Calls */
+  .tool-call { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; margin: 8px 0; overflow: hidden; }
+  .tool-call-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg3); font-size: 12px; cursor: pointer; }
+  .tool-call-header .tool-icon { color: var(--yellow); }
+  .tool-call-header .tool-name { color: var(--orange); font-weight: 600; }
+  .tool-call-body { padding: 10px 12px; font-size: 12px; display: none; }
+  .tool-call-body.open { display: block; }
+  .tool-call-body pre { background: var(--bg); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 4px; }
+  .tool-result { border-top: 1px solid var(--border); padding: 8px 12px; font-size: 12px; }
+  .tool-result .label { color: var(--green); font-weight: 600; margin-bottom: 4px; }
+
+  /* Thinking indicator */
+  .thinking { display: flex; align-items: center; gap: 8px; padding: 12px; color: var(--text2); font-size: 13px; }
+  .thinking .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Input */
+  .input-area { padding: 16px 20px; background: var(--bg2); border-top: 1px solid var(--border); }
+  .input-row { display: flex; gap: 10px; align-items: flex-end; }
+  .input-row textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 12px 16px; font-family: inherit; font-size: 14px; resize: none; min-height: 48px; max-height: 200px; outline: none; transition: border-color .2s; }
+  .input-row textarea:focus { border-color: var(--accent); }
+  .input-row textarea::placeholder { color: var(--text2); }
+  .send-btn { background: var(--accent); border: none; color: #fff; width: 44px; height: 44px; border-radius: 10px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: opacity .2s; }
+  .send-btn:hover { opacity: .85; }
+  .send-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .input-hint { font-size: 11px; color: var(--text2); margin-top: 6px; text-align: center; }
+
+  /* Side Panel */
+  .side-panel { width: 320px; background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+  .side-tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .side-tab { flex: 1; padding: 10px; text-align: center; font-size: 12px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; }
+  .side-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .side-content { flex: 1; overflow-y: auto; padding: 12px; font-size: 13px; }
+  .file-tree-item { padding: 4px 8px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 6px; }
+  .file-tree-item:hover { background: var(--bg3); }
+  .file-tree-item .icon { color: var(--yellow); }
+  .file-viewer { white-space: pre-wrap; font-size: 12px; background: var(--bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border); max-height: 100%; overflow: auto; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { background: var(--bg3); border-radius: 8px; padding: 12px; text-align: center; }
+  .stat-card .value { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .stat-card .label { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  @media (max-width: 768px) {
+    .side-panel { display: none; }
+    .msg.user .bubble, .msg.assistant .bubble { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">&#9889; Claw Code</div>
+  <div class="model-badge" id="modelBadge">claude-sonnet-4-6</div>
+  <div class="status"><div class="dot"></div> <span id="statusText">Ready</span></div>
+</div>
+
+<div class="main">
+  <div class="chat-panel">
+    <div class="messages" id="messages">
+      <div class="msg assistant">
+        <div class="role">Claw Code</div>
+        <div class="bubble">
+          <div class="content">Welcome! I'm <b>Claw Code</b> — an autonomous coding agent.
+
+I can <b>create apps</b>, <b>write code</b>, <b>run commands</b>, and <b>build projects</b> in any language.
+
+Try: <i>"Build a todo app in React"</i> or <i>"Create a Python Flask API"</i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="input" placeholder="Tell me what to build..." rows="1" autofocus></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">&#9654;</button>
+      </div>
+      <div class="input-hint">Enter to send &middot; Shift+Enter for new line &middot; Autonomous agent with tool calling</div>
+    </div>
+  </div>
+
+  <div class="side-panel">
+    <div class="side-tabs">
+      <div class="side-tab active" onclick="switchTab('files')">Files</div>
+      <div class="side-tab" onclick="switchTab('stats')">Stats</div>
+    </div>
+    <div class="side-content" id="sideContent">
+      <div id="filesTab">
+        <div style="color:var(--text2);text-align:center;padding:40px;">
+          Workspace files will appear here after the agent creates them.
+        </div>
+      </div>
+      <div id="statsTab" style="display:none;">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="value" id="statIter">0</div><div class="label">Iterations</div></div>
+          <div class="stat-card"><div class="value" id="statTools">0</div><div class="label">Tool Calls</div></div>
+          <div class="stat-card"><div class="value" id="statTokens">0</div><div class="label">Tokens</div></div>
+          <div class="stat-card"><div class="value" id="statFiles">0</div><div class="label">Files</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let sessionId = null;
+let totalTools = 0;
+let isProcessing = false;
+
+const input = document.getElementById('input');
+const messages = document.getElementById('messages');
+const sendBtn = document.getElementById('sendBtn');
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+});
+
+function switchTab(tab) {
+  document.querySelectorAll('.side-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('filesTab').style.display = tab === 'files' ? 'block' : 'none';
+  document.getElementById('statsTab').style.display = tab === 'stats' ? 'block' : 'none';
+  event.target.classList.add('active');
+  if (tab === 'files') refreshFiles();
+}
+
+function addMessage(role, html) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `<div class="role">${role === 'user' ? 'You' : 'Claw Code'}</div><div class="bubble"><div class="content">${html}</div></div>`;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+  return div;
+}
+
+function addToolCall(name, args, result) {
+  totalTools++;
+  const div = document.createElement('div');
+  div.className = 'tool-call';
+  const argsStr = JSON.stringify(args, null, 2);
+  const resultStr = JSON.stringify(result, null, 2);
+  div.innerHTML = `
+    <div class="tool-call-header" onclick="this.nextElementSibling.classList.toggle('open')">
+      <span class="tool-icon">&#9881;</span>
+      <span class="tool-name">${name}</span>
+      <span style="color:var(--text2);font-size:11px;">${result?.error ? '&#10060; Error' : '&#9989; Success'}</span>
+    </div>
+    <div class="tool-call-body">
+      <div style="color:var(--text2)">Arguments:</div>
+      <pre><code>${escapeHtml(argsStr)}</code></pre>
+      <div class="tool-result">
+        <div class="label">Result:</div>
+        <pre><code>${escapeHtml(resultStr.substring(0, 2000))}</code></pre>
+      </div>
+    </div>`;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+  document.getElementById('statTools').textContent = totalTools;
+}
+
+function showThinking(text) {
+  const div = document.createElement('div');
+  div.className = 'thinking';
+  div.id = 'thinkingIndicator';
+  div.innerHTML = `<div class="spinner"></div> ${text || 'Thinking...'}`;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function hideThinking() {
+  const el = document.getElementById('thinkingIndicator');
+  if (el) el.remove();
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+function formatMarkdown(text) {
+  if (!text) return '';
+  let h = escapeHtml(text);
+  h = h.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  h = h.replace(/\*([^*]+)\*/g, '<i>$1</i>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
+
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text || isProcessing) return;
+
+  isProcessing = true;
+  sendBtn.disabled = true;
+  input.value = '';
+  input.style.height = 'auto';
+
+  addMessage('user', escapeHtml(text));
+  showThinking('Agent is working...');
+  document.getElementById('statusText').textContent = 'Working...';
+  document.querySelector('.header .dot').style.background = 'var(--yellow)';
+
+  try {
+    const res = await fetch(`${API}/agent/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        session_id: sessionId,
+      }),
+    });
+    const data = await res.json();
+    hideThinking();
+
+    if (data.error) {
+      addMessage('assistant', `<span style="color:var(--red)">Error: ${escapeHtml(data.error)}</span>`);
+    } else {
+      sessionId = data.session_id;
+
+      // Show tool calls
+      if (data.tool_calls) {
+        for (const tc of data.tool_calls) {
+          addToolCall(tc.tool, tc.arguments, tc.result);
+        }
+      }
+
+      // Show response
+      if (data.response) {
+        addMessage('assistant', formatMarkdown(data.response));
+      }
+
+      // Update stats
+      document.getElementById('statIter').textContent = data.iterations || 0;
+      if (data.usage) {
+        document.getElementById('statTokens').textContent =
+          ((data.usage.input_tokens || 0) + (data.usage.output_tokens || 0)).toLocaleString();
+      }
+
+      refreshFiles();
+    }
+  } catch (err) {
+    hideThinking();
+    addMessage('assistant', `<span style="color:var(--red)">Network error: ${escapeHtml(err.message)}</span>`);
+  }
+
+  isProcessing = false;
+  sendBtn.disabled = false;
+  document.getElementById('statusText').textContent = 'Ready';
+  document.querySelector('.header .dot').style.background = 'var(--green)';
+  input.focus();
+}
+
+async function refreshFiles() {
+  if (!sessionId) return;
+  try {
+    const res = await fetch(`${API}/agent/files/${sessionId}`);
+    const data = await res.json();
+    const tab = document.getElementById('filesTab');
+    if (data.entries && data.entries.length > 0) {
+      tab.innerHTML = data.entries.map(e =>
+        `<div class="file-tree-item" onclick="viewFile('${e.path}')">
+          <span class="icon">${e.type === 'directory' ? '&#128193;' : '&#128196;'}</span>
+          <span>${e.name}</span>
+          ${e.size != null ? `<span style="margin-left:auto;color:var(--text2);font-size:11px;">${e.size}b</span>` : ''}
+        </div>`
+      ).join('');
+      document.getElementById('statFiles').textContent = data.entries.filter(e => e.type === 'file').length;
+    }
+  } catch (e) {}
+}
+
+async function viewFile(path) {
+  if (!sessionId) return;
+  try {
+    const res = await fetch(`${API}/agent/file/${sessionId}?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    if (data.content) {
+      const tab = document.getElementById('filesTab');
+      tab.innerHTML = `
+        <div class="file-tree-item" onclick="refreshFiles()" style="color:var(--accent);margin-bottom:8px;">
+          &#8592; Back to file list
+        </div>
+        <div style="color:var(--text2);font-size:11px;margin-bottom:8px;">${path}</div>
+        <div class="file-viewer"><code>${escapeHtml(data.content)}</code></div>`;
+    }
+  } catch (e) {}
+}
+</script>
+</body>
+</html>
