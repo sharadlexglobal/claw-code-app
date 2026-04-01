@@ -69,9 +69,20 @@
   .input-row textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 14px; font-family: inherit; font-size: 13px; resize: none; min-height: 42px; max-height: 160px; outline: none; transition: border-color .2s; }
   .input-row textarea:focus { border-color: var(--accent); }
   .input-row textarea::placeholder { color: var(--text2); }
+  .attach-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); width: 42px; height: 42px; border-radius: 8px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; }
+  .attach-btn:hover { color: var(--accent); border-color: var(--accent); }
   .send-btn { background: var(--accent); border: none; color: #fff; width: 42px; height: 42px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
   .send-btn:disabled { opacity: .3; cursor: not-allowed; }
   .input-hint { font-size: 10px; color: var(--text2); margin-top: 4px; text-align: center; }
+
+  /* Attachment chips */
+  .attach-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin-bottom: 6px; }
+  .attach-chips:empty { display: none; }
+  .attach-chip { display: flex; align-items: center; gap: 6px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; font-size: 11px; color: var(--text); }
+  .attach-chip.image { border-color: var(--purple); }
+  .attach-chip .chip-thumb { width: 24px; height: 24px; border-radius: 4px; object-fit: cover; }
+  .attach-chip .chip-remove { cursor: pointer; color: var(--text2); font-size: 14px; margin-left: 2px; transition: color .15s; }
+  .attach-chip .chip-remove:hover { color: var(--red); }
 
   /* ── PREVIEW PANEL ─────────────────────────────────────── */
   .preview-panel { display: flex; flex-direction: column; min-width: 300px; background: var(--bg2); }
@@ -145,11 +156,14 @@ The <b>Preview panel</b> on the right will show your website live as I build it!
       </div>
     </div>
     <div class="input-area">
+      <div class="attach-chips" id="attachChips"></div>
       <div class="input-row">
-        <textarea id="input" placeholder="Tell me what to build..." rows="1" autofocus></textarea>
+        <button class="attach-btn" onclick="document.getElementById('fileInput').click()" title="Attach image or file">&#128206;</button>
+        <input type="file" id="fileInput" multiple accept="image/*,.html,.css,.js,.json,.txt,.py,.ts,.tsx,.jsx,.md,.csv,.xml,.yaml,.yml,.env,.sh,.sql" style="display:none" onchange="handleFiles(this.files)">
+        <textarea id="input" placeholder="Tell me what to build... (attach images or files)" rows="1" autofocus></textarea>
         <button class="send-btn" id="sendBtn" onclick="sendMessage()">&#9654;</button>
       </div>
-      <div class="input-hint">Enter to send &middot; Shift+Enter for new line</div>
+      <div class="input-hint">Enter to send &middot; Shift+Enter for new line &middot; &#128206; Attach images or code files</div>
     </div>
   </div>
 
@@ -194,6 +208,7 @@ let isProcessing = false;
 let previewVisible = true;
 let viewMode = 'preview'; // 'preview' or 'code'
 let currentPreviewFile = null;
+let pendingAttachments = []; // {filename, content_type, data (base64), thumbUrl?}
 
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
@@ -208,6 +223,73 @@ input.addEventListener('input', () => {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 160) + 'px';
 });
+
+// ── Drag & Drop on input area ─────────────────────────────────────────────
+
+const inputArea = document.querySelector('.input-area');
+inputArea.addEventListener('dragover', e => { e.preventDefault(); inputArea.style.borderColor = 'var(--accent)'; });
+inputArea.addEventListener('dragleave', () => { inputArea.style.borderColor = ''; });
+inputArea.addEventListener('drop', e => {
+  e.preventDefault();
+  inputArea.style.borderColor = '';
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+
+// Also allow paste of images
+input.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  const files = [];
+  for (const item of items) {
+    if (item.kind === 'file') files.push(item.getAsFile());
+  }
+  if (files.length) handleFiles(files);
+});
+
+// ── File Attachment Handling ──────────────────────────────────────────────
+
+function handleFiles(fileList) {
+  for (const file of fileList) {
+    if (file.size > 10 * 1024 * 1024) { alert(`File too large: ${file.name} (max 10MB)`); continue; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1]; // strip data:...;base64, prefix
+      const isImage = file.type.startsWith('image/');
+      const att = {
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        data: base64,
+        thumbUrl: isImage ? reader.result : null,
+      };
+      pendingAttachments.push(att);
+      renderChips();
+    };
+    reader.readAsDataURL(file);
+  }
+  // Reset file input so same file can be re-added
+  document.getElementById('fileInput').value = '';
+}
+
+function removeAttachment(idx) {
+  pendingAttachments.splice(idx, 1);
+  renderChips();
+}
+
+function renderChips() {
+  const container = document.getElementById('attachChips');
+  container.innerHTML = pendingAttachments.map((att, i) => {
+    const isImage = att.content_type.startsWith('image/');
+    const thumb = isImage && att.thumbUrl ? `<img class="chip-thumb" src="${att.thumbUrl}">` : '';
+    const icon = isImage ? '&#128247;' : '&#128196;';
+    const sizeKB = (att.data.length * 3/4 / 1024).toFixed(1);
+    return `<div class="attach-chip ${isImage ? 'image' : ''}">
+      ${thumb}
+      <span>${icon} ${escapeHtml(att.filename)}</span>
+      <span style="opacity:.5">${sizeKB}kb</span>
+      <span class="chip-remove" onclick="removeAttachment(${i})">&times;</span>
+    </div>`;
+  }).join('');
+}
 
 // ── Resizable Divider ───────────────────────────────────────────────────────
 
@@ -479,16 +561,40 @@ async function sendMessage() {
   input.value = '';
   input.style.height = 'auto';
 
-  addMsg('user', escapeHtml(text));
+  // Show attachments in user message
+  let userHtml = escapeHtml(text);
+  if (pendingAttachments.length > 0) {
+    const attHtml = pendingAttachments.map(a => {
+      if (a.content_type.startsWith('image/')) {
+        return `<div style="margin:4px 0"><img src="${a.thumbUrl}" style="max-width:200px;max-height:150px;border-radius:6px;border:1px solid var(--border)"></div>`;
+      }
+      return `<div style="margin:2px 0;font-size:11px;color:var(--text2)">&#128206; ${escapeHtml(a.filename)}</div>`;
+    }).join('');
+    userHtml = attHtml + userHtml;
+  }
+  addMsg('user', userHtml);
   updateThinking('Connecting to agent...');
   setStatus('Working...', true);
+
+  // Build request with attachments
+  const reqBody = { message: text, session_id: sessionId };
+  if (pendingAttachments.length > 0) {
+    reqBody.attachments = pendingAttachments.map(a => ({
+      filename: a.filename,
+      content_type: a.content_type,
+      data: a.data,
+    }));
+  }
+  // Clear attachments after capturing
+  pendingAttachments = [];
+  renderChips();
 
   try {
     // Use streaming endpoint for real-time feedback
     const res = await fetch(`${API}/agent/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: sessionId }),
+      body: JSON.stringify(reqBody),
     });
 
     const reader = res.body.getReader();

@@ -86,11 +86,18 @@ class ChatResponse(BaseModel):
     usage: Optional[dict] = None
 
 
+class Attachment(BaseModel):
+    filename: str
+    content_type: str  # e.g. "image/png", "text/plain"
+    data: str  # base64 for images, raw text for text files
+
+
 class AgentRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     model: Optional[str] = None
     max_iterations: Optional[int] = None
+    attachments: Optional[List[Attachment]] = None
 
 
 def _module_dict(m: PortingModule) -> dict:
@@ -272,6 +279,13 @@ def list_models():
 # ── Agent (Autonomous Tool-Calling) ─────────────────────────────────────────
 
 
+def _serialize_attachments(attachments: Optional[List[Attachment]]) -> Optional[list]:
+    """Convert Attachment models to dicts for the agent loop."""
+    if not attachments:
+        return None
+    return [{"filename": a.filename, "content_type": a.content_type, "data": a.data} for a in attachments]
+
+
 @app.post("/agent/run")
 def agent_run(req: AgentRequest):
     """Run the autonomous agent. It will think, call tools, and iterate until done."""
@@ -281,6 +295,7 @@ def agent_run(req: AgentRequest):
             user_message=req.message,
             model=req.model,
             max_iterations=req.max_iterations,
+            attachments=_serialize_attachments(req.attachments),
         )
         return result
     except Exception as e:
@@ -297,6 +312,7 @@ def agent_stream(req: AgentRequest):
                 user_message=req.message,
                 model=req.model,
                 max_iterations=req.max_iterations,
+                attachments=_serialize_attachments(req.attachments),
             ):
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as e:

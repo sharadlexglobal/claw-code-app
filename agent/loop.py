@@ -367,11 +367,61 @@ def _get_client() -> OpenAI:
     return OpenAI(base_url=ORBIT_BASE_URL, api_key=ORBIT_API_KEY)
 
 
+IMAGE_CONTENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+def _build_user_content(message: str, attachments: Optional[List[dict]] = None):
+    """Build a user message content block, optionally multimodal.
+
+    For plain text returns a string.
+    For messages with image attachments returns an OpenAI-compatible
+    content array with text and image_url blocks.
+    For text file attachments, appends file content to the message text.
+    """
+    if not attachments:
+        return message
+
+    text_parts = [message]
+    image_blocks = []
+
+    for att in attachments:
+        ct = att.get("content_type", "")
+        fname = att.get("filename", "file")
+        data = att.get("data", "")
+
+        if ct in IMAGE_CONTENT_TYPES:
+            # Image — add as vision block
+            image_blocks.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{ct};base64,{data}"},
+            })
+        else:
+            # Text/code file — decode base64 and append to message
+            try:
+                import base64
+                decoded = base64.b64decode(data).decode("utf-8", errors="replace")
+            except Exception:
+                decoded = data  # might already be plain text
+            text_parts.append(f"\n\n--- Attached file: {fname} ---\n{decoded[:30000]}")
+
+    combined_text = "\n".join(text_parts)
+
+    if not image_blocks:
+        # No images — just return enriched text
+        return combined_text
+
+    # Multimodal: text + images
+    content = [{"type": "text", "text": combined_text}]
+    content.extend(image_blocks)
+    return content
+
+
 def run_agent(
     session_id: Optional[str],
     user_message: str,
     model: Optional[str] = None,
     max_iterations: Optional[int] = None,
+    attachments: Optional[List[dict]] = None,
 ) -> dict:
     """Run the agent loop. Parses tool_call blocks from the model's response."""
 
@@ -389,8 +439,9 @@ def run_agent(
 
     system_prompt = AGENT_SYSTEM_PROMPT.format(workspace_root=workspace_path)
 
-    # Add user message
-    session.messages.append({"role": "user", "content": user_message})
+    # Add user message (with attachments if any)
+    user_content = _build_user_content(user_message, attachments)
+    session.messages.append({"role": "user", "content": user_content})
     session.turns.append(AgentTurn(role="user", content=user_message))
 
     iterations = 0
@@ -488,6 +539,7 @@ def run_agent_stream(
     user_message: str,
     model: Optional[str] = None,
     max_iterations: Optional[int] = None,
+    attachments: Optional[List[dict]] = None,
 ) -> Generator[dict, None, None]:
     """Run the agent loop with streaming events."""
 
@@ -504,7 +556,8 @@ def run_agent_stream(
 
     system_prompt = AGENT_SYSTEM_PROMPT.format(workspace_root=workspace_path)
 
-    session.messages.append({"role": "user", "content": user_message})
+    user_content = _build_user_content(user_message, attachments)
+    session.messages.append({"role": "user", "content": user_content})
 
     yield {"event": "session", "session_id": session.session_id, "workspace": workspace_path}
 
