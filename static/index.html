@@ -286,7 +286,7 @@ async function loadCodeView() {
 
 function refreshPreview() {
   if (!sessionId) return;
-  loadPreview(currentPreviewFile);
+  loadPreview(currentPreviewFile, true);
 }
 
 function openInNewTab() {
@@ -294,7 +294,7 @@ function openInNewTab() {
   window.open(`${API}/agent/preview/${sessionId}?file=${encodeURIComponent(currentPreviewFile)}`, '_blank');
 }
 
-async function loadPreview(file) {
+async function loadPreview(file, forceReload) {
   if (!sessionId) return;
 
   // If no specific file, auto-detect
@@ -311,7 +311,9 @@ async function loadPreview(file) {
   if (!file) return;
 
   currentPreviewFile = file;
-  const url = `${API}/agent/preview/${sessionId}?file=${encodeURIComponent(file)}`;
+  // Add cache-buster to force iframe reload
+  const cacheBuster = forceReload ? `&_t=${Date.now()}` : '';
+  const url = `${API}/agent/preview/${sessionId}?file=${encodeURIComponent(file)}${cacheBuster}`;
 
   document.getElementById('previewEmpty').style.display = 'none';
   const frame = document.getElementById('previewFrame');
@@ -325,7 +327,7 @@ async function loadPreview(file) {
   if (!previewVisible) togglePreview();
 }
 
-async function refreshFiles() {
+async function refreshFiles(forcePreviewReload) {
   if (!sessionId) return;
   try {
     const res = await fetch(`${API}/agent/files/${sessionId}`);
@@ -335,7 +337,7 @@ async function refreshFiles() {
       filesDiv.style.display = 'block';
       filesDiv.innerHTML = data.entries.map(e => {
         const isHtml = e.name.endsWith('.html') || e.name.endsWith('.htm');
-        return `<div class="pf-item ${isHtml ? 'html' : ''}" onclick="${isHtml ? `loadPreview('${e.name}')` : `viewFileInCode('${e.name}')`}">
+        return `<div class="pf-item ${isHtml ? 'html' : ''}" onclick="${isHtml ? `loadPreview('${e.name}', true)` : `viewFileInCode('${e.name}')`}">
           <span>${e.type === 'directory' ? '&#128193;' : (isHtml ? '&#127760;' : '&#128196;')}</span>
           <span>${e.name}</span>
           ${e.size != null ? `<span style="margin-left:auto;opacity:.5">${e.size}b</span>` : ''}
@@ -343,13 +345,11 @@ async function refreshFiles() {
       }).join('');
       document.getElementById('statFiles').textContent = data.entries.filter(e => e.type === 'file').length;
 
-      // Auto-load preview for first HTML file
-      const htmlFile = data.entries.find(e => e.name.endsWith('.html'));
-      if (htmlFile && !currentPreviewFile) {
-        loadPreview(htmlFile.name);
-      } else if (currentPreviewFile) {
-        // Refresh current preview
-        loadPreview(currentPreviewFile);
+      // Auto-load preview for HTML files
+      const htmlFile = data.entries.find(e => e.name === 'index.html') || data.entries.find(e => e.name.endsWith('.html'));
+      if (htmlFile) {
+        // Always load/refresh preview when we find HTML files
+        loadPreview(htmlFile.name, forcePreviewReload || false);
       }
     }
   } catch(e) {}
@@ -444,8 +444,8 @@ async function sendMessage() {
     let buffer = '';
     let textParts = [];
     let iterCount = 0;
-    let hasRefreshedPreview = false;
     let pendingToolArgs = {}; // Store args from tool_call until tool_result comes
+    let htmlFilesWritten = []; // Track all HTML files created
 
     while (true) {
       const { done, value } = await reader.read();
@@ -488,13 +488,18 @@ async function sendMessage() {
 
           case 'tool_result':
             addTool(event.tool, pendingToolArgs[event.tool] || event.arguments || {}, event.result || {});
-            // After write_file with HTML, refresh preview immediately
-            if (event.tool === 'write_file' && !hasRefreshedPreview) {
+            // After write_file with HTML, refresh preview
+            if (event.tool === 'write_file') {
               const fp = (event.result && event.result.file_path) || '';
               if (fp.endsWith('.html') || fp.endsWith('.htm')) {
-                hasRefreshedPreview = true;
-                setTimeout(() => refreshFiles(), 200);
+                htmlFilesWritten.push(fp);
+                // Refresh preview every time an HTML file is written
+                setTimeout(() => loadPreview(fp, true), 300);
               }
+            }
+            // After bash commands, also check for new files (agent might create HTML via bash)
+            if (event.tool === 'bash' && event.result && !event.result.error) {
+              setTimeout(() => refreshFiles(true), 500);
             }
             break;
 
@@ -525,8 +530,14 @@ async function sendMessage() {
       addMsg('assistant', formatMd(finalText));
     }
 
-    // Final file/preview refresh
-    await refreshFiles();
+    // ALWAYS do a final file/preview refresh with force reload
+    await refreshFiles(true);
+
+    // Extra safety: if HTML files were written, force load preview after a short delay
+    if (htmlFilesWritten.length > 0) {
+      const bestFile = htmlFilesWritten.find(f => f.includes('index.html')) || htmlFilesWritten[0];
+      setTimeout(() => loadPreview(bestFile, true), 500);
+    }
 
   } catch (err) {
     hideThinking();
