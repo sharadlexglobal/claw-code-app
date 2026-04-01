@@ -75,22 +75,53 @@ TOOL_CALL_PATTERN = re.compile(
     re.DOTALL
 )
 
-# Fallback: match JSON blocks that look like tool calls (without XML tags)
-FALLBACK_PATTERN = re.compile(
-    r'\{["\s]*"?name"?\s*:\s*"(read_file|write_file|edit_file|bash|list_directory|search_files)".*?\}',
-    re.DOTALL
-)
+TOOL_NAMES = {"read_file", "write_file", "edit_file", "bash", "list_directory", "search_files"}
+
+
+def _extract_json_objects(text: str) -> list[dict]:
+    """Extract all valid JSON objects from text using brace matching."""
+    objects = []
+    i = 0
+    while i < len(text):
+        if text[i] == '{':
+            depth = 0
+            start = i
+            for j in range(i, len(text)):
+                if text[j] == '{':
+                    depth += 1
+                elif text[j] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        raw = text[start:j + 1]
+                        try:
+                            parsed = json.loads(raw)
+                            if isinstance(parsed, dict):
+                                objects.append(parsed)
+                        except json.JSONDecodeError:
+                            pass
+                        i = j + 1
+                        break
+            else:
+                i += 1
+        else:
+            i += 1
+    return objects
 
 
 def parse_tool_calls(text: str) -> list[dict]:
-    """Extract tool_call blocks from the assistant's response text."""
+    """Extract tool calls from the assistant's response text.
+
+    Tries multiple strategies:
+    1. <tool_call> XML tags (ideal)
+    2. Any JSON object with "name" matching a known tool
+    """
     calls = []
 
-    # Try primary pattern first
+    # Strategy 1: <tool_call> XML tags
     for match in TOOL_CALL_PATTERN.finditer(text):
         try:
             parsed = json.loads(match.group(1))
-            if "name" in parsed:
+            if isinstance(parsed, dict) and parsed.get("name") in TOOL_NAMES:
                 calls.append({
                     "name": parsed["name"],
                     "arguments": parsed.get("arguments", {}),
@@ -101,32 +132,14 @@ def parse_tool_calls(text: str) -> list[dict]:
     if calls:
         return calls
 
-    # Fallback: find JSON objects that look like tool calls
-    for match in FALLBACK_PATTERN.finditer(text):
-        try:
-            # Try to parse the full JSON from this position
-            start = match.start()
-            depth = 0
-            end = start
-            for i in range(start, len(text)):
-                if text[i] == '{':
-                    depth += 1
-                elif text[i] == '}':
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
-            raw = text[start:end]
-            parsed = json.loads(raw)
-            name = parsed.get("name", "")
-            arguments = parsed.get("arguments", {})
-            # Some models put args at top level
-            if not arguments and name:
-                arguments = {k: v for k, v in parsed.items() if k != "name"}
-            if name:
-                calls.append({"name": name, "arguments": arguments})
-        except (json.JSONDecodeError, ValueError):
-            continue
+    # Strategy 2: Find any JSON object that looks like a tool call
+    for obj in _extract_json_objects(text):
+        name = obj.get("name", "")
+        if name in TOOL_NAMES:
+            arguments = obj.get("arguments", {})
+            if not arguments:
+                arguments = {k: v for k, v in obj.items() if k != "name"}
+            calls.append({"name": name, "arguments": arguments})
 
     return calls
 
