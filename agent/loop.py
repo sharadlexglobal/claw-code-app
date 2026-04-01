@@ -29,67 +29,43 @@ DEFAULT_MODEL = os.environ.get("ORBIT_MODEL", "claude-sonnet-4-6")
 MAX_ITERATIONS = int(os.environ.get("CLAW_MAX_ITERATIONS", "25"))
 MAX_TOKENS = int(os.environ.get("CLAW_MAX_TOKENS", "8192"))
 
-AGENT_SYSTEM_PROMPT = """You are Claw Code — an autonomous AI coding agent running on a server.
-You have access to a workspace directory where you can create, read, edit files and run bash commands.
+AGENT_SYSTEM_PROMPT = """You are Claw Code, an autonomous AI coding agent. You EXECUTE tasks by calling tools.
 
-## Available Tools
+CRITICAL: You MUST use <tool_call> XML tags to call tools. This is NOT optional. Without these tags, NOTHING happens.
 
-To use a tool, output a tool_call block in this EXACT format:
+# Tool Call Format (MANDATORY)
 
-<tool_call>
-{{"name": "tool_name", "arguments": {{"param1": "value1", "param2": "value2"}}}}
-</tool_call>
+<tool_call>{{"name": "TOOL_NAME", "arguments": {{"key": "value"}}}}</tool_call>
 
-### Tools:
+# Available Tools
 
-1. **read_file** - Read a file from the workspace
-   - Arguments: file_path (required), offset (optional, default 0), limit (optional, default 2000)
+- write_file: {{"name":"write_file","arguments":{{"file_path":"path","content":"file content"}}}}
+- read_file: {{"name":"read_file","arguments":{{"file_path":"path"}}}}
+- edit_file: {{"name":"edit_file","arguments":{{"file_path":"path","old_string":"old","new_string":"new"}}}}
+- bash: {{"name":"bash","arguments":{{"command":"shell command here"}}}}
+- list_directory: {{"name":"list_directory","arguments":{{"directory":"."}}}}
+- search_files: {{"name":"search_files","arguments":{{"pattern":"regex","directory":"."}}}}
 
-2. **write_file** - Create or overwrite a file
-   - Arguments: file_path (required), content (required)
+# Rules
+1. EVERY action MUST be a <tool_call> block. Text alone does NOTHING.
+2. Use multiple <tool_call> blocks in one response.
+3. After writing code, ALWAYS run it with bash to verify.
+4. If something fails, fix it and retry.
+5. Install dependencies via bash (pip install, npm install, etc.)
+6. Write complete, production-quality code.
 
-3. **edit_file** - Replace text in an existing file
-   - Arguments: file_path (required), old_string (required), new_string (required)
+# Workspace: {workspace_root}
 
-4. **list_directory** - List files in a directory
-   - Arguments: directory (optional, default ".")
+# Example
 
-5. **search_files** - Search for a regex pattern in files
-   - Arguments: pattern (required), directory (optional), file_glob (optional)
+User: Create and run a hello world Python script
 
-6. **bash** - Execute a shell command
-   - Arguments: command (required), timeout (optional, default 30)
+Response:
+I'll create hello.py and run it.
 
-## Rules
-1. ALWAYS use tool_call blocks to accomplish tasks — don't just describe what you'd do
-2. You can use MULTIPLE tool_call blocks in a single response
-3. Create complete, working code — not snippets or placeholders
-4. After writing code, RUN it to verify it works using bash
-5. If a command fails, read the error, fix it, and retry
-6. Install dependencies as needed via bash (pip install, npm install, etc.)
-7. Organize projects with proper structure
-8. When building apps, include ALL necessary files
+<tool_call>{{"name": "write_file", "arguments": {{"file_path": "hello.py", "content": "print('Hello World!')\\n"}}}}</tool_call>
 
-## Workspace
-Your workspace root is: {workspace_root}
-All file paths are relative to this directory.
-
-## Example
-
-User: Create a Python script that prints fibonacci numbers
-
-Your response:
-I'll create a fibonacci script and run it.
-
-<tool_call>
-{{"name": "write_file", "arguments": {{"file_path": "fibonacci.py", "content": "def fibonacci(n):\\n    a, b = 0, 1\\n    for _ in range(n):\\n        print(a, end=' ')\\n        a, b = b, a + b\\n    print()\\n\\nfibonacci(10)\\n"}}}}
-</tool_call>
-
-Now let me run it:
-
-<tool_call>
-{{"name": "bash", "arguments": {{"command": "python3 fibonacci.py"}}}}
-</tool_call>
+<tool_call>{{"name": "bash", "arguments": {{"command": "python3 hello.py"}}}}</tool_call>
 """
 
 # ── Parse Tool Calls from Text ───────────────────────────────────────────────
@@ -99,10 +75,18 @@ TOOL_CALL_PATTERN = re.compile(
     re.DOTALL
 )
 
+# Fallback: match JSON blocks that look like tool calls (without XML tags)
+FALLBACK_PATTERN = re.compile(
+    r'\{["\s]*"?name"?\s*:\s*"(read_file|write_file|edit_file|bash|list_directory|search_files)".*?\}',
+    re.DOTALL
+)
+
 
 def parse_tool_calls(text: str) -> list[dict]:
     """Extract tool_call blocks from the assistant's response text."""
     calls = []
+
+    # Try primary pattern first
     for match in TOOL_CALL_PATTERN.finditer(text):
         try:
             parsed = json.loads(match.group(1))
@@ -113,6 +97,37 @@ def parse_tool_calls(text: str) -> list[dict]:
                 })
         except json.JSONDecodeError:
             continue
+
+    if calls:
+        return calls
+
+    # Fallback: find JSON objects that look like tool calls
+    for match in FALLBACK_PATTERN.finditer(text):
+        try:
+            # Try to parse the full JSON from this position
+            start = match.start()
+            depth = 0
+            end = start
+            for i in range(start, len(text)):
+                if text[i] == '{':
+                    depth += 1
+                elif text[i] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+            raw = text[start:end]
+            parsed = json.loads(raw)
+            name = parsed.get("name", "")
+            arguments = parsed.get("arguments", {})
+            # Some models put args at top level
+            if not arguments and name:
+                arguments = {k: v for k, v in parsed.items() if k != "name"}
+            if name:
+                calls.append({"name": name, "arguments": arguments})
+        except (json.JSONDecodeError, ValueError):
+            continue
+
     return calls
 
 
