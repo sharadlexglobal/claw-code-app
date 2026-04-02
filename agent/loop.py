@@ -359,12 +359,105 @@ def delete_session(session_id: str) -> bool:
     return _sessions.pop(session_id, None) is not None
 
 
+# ── Design Agent ─────────────────────────────────────────────────────────────
+
+DESIGN_SYSTEM_PROMPT = """You are a world-class UI/UX designer. Your ONLY job is to produce a detailed visual design specification when a user asks for a website, app, or any frontend project.
+
+You do NOT write code. You do NOT create files. You produce a design document that a developer will follow exactly.
+
+# What you output
+
+For every request, output a structured design spec covering:
+
+## 1. Color Palette
+- Primary, secondary, accent colors (exact hex values)
+- Background colors (gradients if appropriate — specify stops and direction)
+- Text colors for headings, body, muted text
+- Card/surface colors, border colors
+- Hover/active state colors
+
+## 2. Typography
+- Font families (use Google Fonts — specify exact names)
+- Heading sizes (h1 through h3, using clamp() for responsiveness)
+- Body text size, line-height, letter-spacing
+- Font weights for headings vs body vs labels
+
+## 3. Layout & Spacing
+- Overall page structure (sections, their order, purpose)
+- Max-width for content containers
+- Section padding, gaps between elements
+- Grid/flex layout for cards or multi-column sections
+- How it should look on mobile (stacking, smaller padding)
+
+## 4. Component Design
+For each UI component (hero, cards, buttons, nav, footer, forms, etc.):
+- Border-radius values
+- Shadow styles (box-shadow with exact values)
+- Padding/margin
+- Hover effects (transforms, color changes, transitions)
+- Border styles if any
+
+## 5. Visual Personality
+- Overall mood (e.g. "luxury minimalism", "playful startup", "corporate trust")
+- Any decorative elements (subtle patterns, gradients, icons style)
+- Image treatment if applicable (rounded, overlays, aspect ratios)
+
+# Rules
+
+- Be SPECIFIC — give exact hex codes, exact pixel/rem values, exact font names. Never say "a nice blue" — say "#2563EB".
+- Be OPINIONATED — make bold design choices. No generic Bootstrap-looking defaults.
+- Think like a Dribbble/Behance top designer — modern, polished, with personality.
+- Consider visual hierarchy, whitespace, contrast ratios.
+- If the user provides a reference image, analyze it and match/improve upon that style.
+- Keep the spec concise but complete — under 800 words.
+- Output ONLY the design spec, no pleasantries.
+"""
+
+# Keywords that suggest a frontend/visual task (triggers design agent)
+_DESIGN_KEYWORDS = {
+    "website", "webpage", "web page", "landing page", "homepage", "portfolio",
+    "dashboard", "app", "application", "ui", "interface", "page", "site",
+    "html", "frontend", "front-end", "layout", "design", "styled",
+    "beautiful", "modern", "sleek", "responsive", "animation",
+}
+
+
+def _needs_design(message: str) -> bool:
+    """Check if the user's request is a frontend/visual task that benefits from design planning."""
+    lower = message.lower()
+    # Must contain at least one design keyword
+    return any(kw in lower for kw in _DESIGN_KEYWORDS)
+
+
 # ── Agent Loop ───────────────────────────────────────────────────────────────
 
 def _get_client() -> OpenAI:
     if not ORBIT_API_KEY:
         raise RuntimeError("ORBIT_API_KEY not configured")
     return OpenAI(base_url=ORBIT_BASE_URL, api_key=ORBIT_API_KEY)
+
+
+def _run_design_agent(client, model: str, user_content) -> str:
+    """Run the Design Agent to produce a visual design spec.
+    Returns the design spec text, or empty string on failure.
+    """
+    try:
+        messages = [
+            {"role": "system", "content": DESIGN_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
+        print("[DESIGN-AGENT] Running design agent...")
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=4096,
+        )
+        spec = response.choices[0].message.content or ""
+        print(f"[DESIGN-AGENT] Design spec generated: {len(spec)} chars")
+        return spec
+    except Exception as e:
+        print(f"[DESIGN-AGENT] Error: {e}")
+        return ""
 
 
 IMAGE_CONTENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
@@ -441,6 +534,13 @@ def run_agent(
 
     # Add user message (with attachments if any)
     user_content = _build_user_content(user_message, attachments)
+
+    # ── Design Agent Phase ──
+    if _needs_design(user_message):
+        design_spec = _run_design_agent(client, model, user_content)
+        if design_spec:
+            system_prompt += f"\n\n# DESIGN SPECIFICATION (from Design Agent — follow this EXACTLY)\n\n{design_spec}\n\nYou MUST follow the above design spec precisely. Use the exact colors, fonts, spacing, and component styles specified. Do NOT use generic defaults."
+
     session.messages.append({"role": "user", "content": user_content})
     session.turns.append(AgentTurn(role="user", content=user_message))
 
@@ -557,9 +657,22 @@ def run_agent_stream(
     system_prompt = AGENT_SYSTEM_PROMPT.format(workspace_root=workspace_path)
 
     user_content = _build_user_content(user_message, attachments)
-    session.messages.append({"role": "user", "content": user_content})
 
     yield {"event": "session", "session_id": session.session_id, "workspace": workspace_path}
+
+    # ── Design Agent Phase ──────────────────────────────────────────────────
+    design_spec = ""
+    if _needs_design(user_message):
+        yield {"event": "design", "status": "running"}
+        design_spec = _run_design_agent(client, model, user_content)
+        if design_spec:
+            yield {"event": "design", "status": "done", "spec": design_spec[:2000]}
+            # Inject design spec into the coding agent's system prompt
+            system_prompt += f"\n\n# DESIGN SPECIFICATION (from Design Agent — follow this EXACTLY)\n\n{design_spec}\n\nYou MUST follow the above design spec precisely. Use the exact colors, fonts, spacing, and component styles specified. Do NOT use generic defaults."
+        else:
+            yield {"event": "design", "status": "skipped"}
+
+    session.messages.append({"role": "user", "content": user_content})
 
     iterations = 0
     while iterations < max_iter:

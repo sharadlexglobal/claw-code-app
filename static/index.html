@@ -63,6 +63,13 @@
   .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* Design Agent */
+  .design-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, var(--purple), #a855f7); color: #fff; font-size: 11px; font-weight: 600; padding: 6px 14px; border-radius: 20px; margin: 8px 0; animation: fadeIn .3s; }
+  .design-spec-box { background: var(--bg2); border: 1px solid var(--purple); border-radius: 8px; margin: 6px 0; overflow: hidden; font-size: 12px; }
+  .design-spec-header { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(188,140,255,0.1); cursor: pointer; color: var(--purple); font-weight: 600; }
+  .design-spec-body { padding: 10px 12px; display: none; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; line-height: 1.55; color: var(--text2); }
+  .design-spec-body.open { display: block; }
+
   /* Input */
   .input-area { padding: 12px 16px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
   .input-row { display: flex; gap: 8px; align-items: flex-end; }
@@ -626,6 +633,19 @@ async function sendMessage() {
           case 'session':
             sessionId = event.session_id;
             console.log('[Claw] Session ID set:', sessionId);
+            break;
+
+          case 'design':
+            if (event.status === 'running') {
+              updateThinking('<span class="design-badge">&#127912; Design Agent</span> Crafting visual design...');
+            } else if (event.status === 'done' && event.spec) {
+              hideThinking();
+              const specBox = document.createElement('div');
+              specBox.className = 'design-spec-box';
+              specBox.innerHTML = `<div class="design-spec-header" onclick="this.nextElementSibling.classList.toggle('open')">&#127912; Design Specification (click to expand)</div><div class="design-spec-body">${formatMd(event.spec)}</div>`;
+              messages.appendChild(specBox);
+              messages.scrollTop = messages.scrollHeight;
+            }
             break;
 
           case 'thinking':
