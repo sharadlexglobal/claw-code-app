@@ -435,7 +435,7 @@ def _needs_design(message: str) -> bool:
 def _get_client() -> OpenAI:
     if not ORBIT_API_KEY:
         raise RuntimeError("ORBIT_API_KEY not configured")
-    return OpenAI(base_url=ORBIT_BASE_URL, api_key=ORBIT_API_KEY)
+    return OpenAI(base_url=ORBIT_BASE_URL, api_key=ORBIT_API_KEY, timeout=80.0)
 
 
 def _run_design_agent(client, model: str, user_content) -> str:

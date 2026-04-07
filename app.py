@@ -70,7 +70,7 @@ Be concise, accurate, and helpful. Format code with markdown code blocks."""
 def get_orbit_client() -> OpenAI:
     if not ORBIT_API_KEY:
         raise HTTPException(status_code=500, detail="ORBIT_API_KEY not configured")
-    return OpenAI(base_url=ORBIT_BASE_URL, api_key=ORBIT_API_KEY)
+    return OpenAI(base_url=ORBIT_BASE_URL, api_key=ORBIT_API_KEY, timeout=80.0)
 
 
 class ChatRequest(BaseModel):
