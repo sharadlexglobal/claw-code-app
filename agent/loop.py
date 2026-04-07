@@ -696,27 +696,56 @@ def run_agent_stream(
         yield {"event": "thinking", "iteration": iterations}
 
         api_messages = [{"role": "system", "content": system_prompt}, *session.messages]
+
+        # Stream LLM response — collect tokens and send them to browser in chunks
+        assistant_text = ""
+        stream_error = None
         try:
-            response = client.chat.completions.create(model=model, messages=api_messages, max_tokens=MAX_TOKENS)
+            collected = []
+            stream = client.chat.completions.create(model=model, messages=api_messages, max_tokens=MAX_TOKENS, stream=True)
+            buffer = []
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    collected.append(token)
+                    buffer.append(token)
+                    # Flush buffer every ~20 chars for real-time streaming
+                    if sum(len(t) for t in buffer) >= 20:
+                        yield {"event": "stream", "content": "".join(buffer)}
+                        buffer = []
+            if buffer:
+                yield {"event": "stream", "content": "".join(buffer)}
+            assistant_text = "".join(collected)
         except Exception as e:
+            stream_error = e
+
+        # Fallback if primary model failed
+        if stream_error:
             if model != FALLBACK_MODEL:
-                print(f"[AGENT-STREAM] Primary model {model} failed: {e}. Falling back to {FALLBACK_MODEL}")
+                print(f"[AGENT-STREAM] Primary model {model} failed: {stream_error}. Falling back to {FALLBACK_MODEL}")
                 yield {"event": "text", "content": f"(Switching to fallback model {FALLBACK_MODEL}...)"}
                 try:
+                    collected = []
+                    stream = client.chat.completions.create(model=FALLBACK_MODEL, messages=api_messages, max_tokens=MAX_TOKENS, stream=True)
+                    buffer = []
+                    for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            token = chunk.choices[0].delta.content
+                            collected.append(token)
+                            buffer.append(token)
+                            if sum(len(t) for t in buffer) >= 20:
+                                yield {"event": "stream", "content": "".join(buffer)}
+                                buffer = []
+                    if buffer:
+                        yield {"event": "stream", "content": "".join(buffer)}
+                    assistant_text = "".join(collected)
                     model = FALLBACK_MODEL
-                    response = client.chat.completions.create(model=FALLBACK_MODEL, messages=api_messages, max_tokens=MAX_TOKENS)
                 except Exception as e2:
                     yield {"event": "error", "message": f"Both models failed: {str(e2)}"}
                     return
             else:
-                yield {"event": "error", "message": str(e)}
+                yield {"event": "error", "message": str(stream_error)}
                 return
-
-        if response.usage:
-            session.total_input_tokens += response.usage.prompt_tokens or 0
-            session.total_output_tokens += response.usage.completion_tokens or 0
-
-        assistant_text = response.choices[0].message.content or ""
         tool_calls = parse_tool_calls(assistant_text)
         prose = strip_tool_calls(assistant_text)
 

@@ -661,6 +661,24 @@ async function sendMessage() {
             updateThinking(`Iteration ${iterCount} — writing response...`);
             break;
 
+          case 'stream':
+            if (event.content) {
+              textParts.push(event.content);
+              hideThinking();
+              // Live-update the assistant bubble with streamed tokens
+              let streamBubble = document.getElementById('stream-bubble');
+              if (!streamBubble) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'msg assistant';
+                msgDiv.innerHTML = '<div class="role">claw code</div><div class="bubble"><div class="content" id="stream-bubble"></div></div>';
+                messages.appendChild(msgDiv);
+                streamBubble = document.getElementById('stream-bubble');
+              }
+              streamBubble.innerHTML = formatMd(textParts.join(''));
+              messages.scrollTop = messages.scrollHeight;
+            }
+            break;
+
           case 'tool_call':
             pendingToolArgs[event.tool] = event.arguments || {};
             updateThinking(`Iteration ${iterCount} — running <b style="color:var(--orange)">${event.tool}</b>...`);
@@ -706,6 +724,13 @@ async function sendMessage() {
     }
 
     hideThinking();
+
+    // Remove stream bubble (it was live-updated, final message replaces it)
+    const streamBubble = document.getElementById('stream-bubble');
+    if (streamBubble) {
+      const streamMsg = streamBubble.closest('.msg');
+      if (streamMsg) streamMsg.remove();
+    }
 
     // Show final response text
     const finalText = textParts.join('\n').trim();
