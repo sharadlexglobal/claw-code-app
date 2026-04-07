@@ -208,7 +208,7 @@ The <b>Preview panel</b> on the right will show your website live as I build it!
 </div>
 
 <script>
-const API = window.location.origin;
+const API = window.location.origin || '';
 let sessionId = null;
 let totalTools = 0;
 let isProcessing = false;
