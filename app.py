@@ -53,6 +53,7 @@ app.add_middleware(
 ORBIT_BASE_URL = os.environ.get("ORBIT_BASE_URL", "https://api.orbit-provider.com/v1")
 ORBIT_API_KEY = os.environ.get("ORBIT_API_KEY", "")
 DEFAULT_MODEL = os.environ.get("ORBIT_MODEL", "claude-opus-4-6")
+FALLBACK_MODEL = os.environ.get("ORBIT_FALLBACK_MODEL", "claude-sonnet-4-6")
 
 sessions: Dict[str, List[dict]] = {}
 
@@ -217,21 +218,31 @@ def chat(req: ChatRequest):
         *sessions[sid],
     ]
 
+    used_model = model
     try:
         completion = client.chat.completions.create(model=model, messages=messages, max_tokens=4096)
         assistant_msg = completion.choices[0].message.content
-        sessions[sid].append({"role": "assistant", "content": assistant_msg})
-
-        usage = None
-        if completion.usage:
-            usage = {
-                "prompt_tokens": completion.usage.prompt_tokens,
-                "completion_tokens": completion.usage.completion_tokens,
-                "total_tokens": completion.usage.total_tokens,
-            }
-        return ChatResponse(session_id=sid, response=assistant_msg, model=model, usage=usage)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Orbit API error: {str(e)}")
+        if model != FALLBACK_MODEL:
+            print(f"[CHAT] Primary model {model} failed: {e}. Falling back to {FALLBACK_MODEL}")
+            try:
+                used_model = FALLBACK_MODEL
+                completion = client.chat.completions.create(model=FALLBACK_MODEL, messages=messages, max_tokens=4096)
+                assistant_msg = completion.choices[0].message.content
+            except Exception as e2:
+                raise HTTPException(status_code=502, detail=f"Orbit API error (both models failed): {str(e2)}")
+        else:
+            raise HTTPException(status_code=502, detail=f"Orbit API error: {str(e)}")
+
+    sessions[sid].append({"role": "assistant", "content": assistant_msg})
+    usage = None
+    if completion.usage:
+        usage = {
+            "prompt_tokens": completion.usage.prompt_tokens,
+            "completion_tokens": completion.usage.completion_tokens,
+            "total_tokens": completion.usage.total_tokens,
+        }
+    return ChatResponse(session_id=sid, response=assistant_msg, model=used_model, usage=usage)
 
 
 @app.post("/chat/stream")
@@ -251,6 +262,7 @@ def chat_stream(req: ChatRequest):
     ]
 
     def generate():
+        used_model = model
         try:
             collected = []
             stream = client.chat.completions.create(model=model, messages=messages, max_tokens=4096, stream=True)
@@ -263,7 +275,23 @@ def chat_stream(req: ChatRequest):
             sessions[sid].append({"role": "assistant", "content": full_response})
             yield "data: [DONE]\n\n"
         except Exception as e:
-            yield f"data: [ERROR] {str(e)}\n\n"
+            if model != FALLBACK_MODEL:
+                print(f"[CHAT-STREAM] Primary model {model} failed: {e}. Falling back to {FALLBACK_MODEL}")
+                try:
+                    collected = []
+                    stream = client.chat.completions.create(model=FALLBACK_MODEL, messages=messages, max_tokens=4096, stream=True)
+                    for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            token = chunk.choices[0].delta.content
+                            collected.append(token)
+                            yield f"data: {token}\n\n"
+                    full_response = "".join(collected)
+                    sessions[sid].append({"role": "assistant", "content": full_response})
+                    yield "data: [DONE]\n\n"
+                except Exception as e2:
+                    yield f"data: [ERROR] Both models failed: {str(e2)}\n\n"
+            else:
+                yield f"data: [ERROR] {str(e)}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -272,7 +300,8 @@ def chat_stream(req: ChatRequest):
 def list_models():
     return {
         "default": DEFAULT_MODEL,
-        "available": ["claude-sonnet-4-6", "claude-opus-4-6-thinking"],
+        "fallback": FALLBACK_MODEL,
+        "available": ["claude-opus-4-6", "claude-sonnet-4-6"],
     }
 
 

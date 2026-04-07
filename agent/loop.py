@@ -26,6 +26,7 @@ from .tools import TOOL_SCHEMAS, execute_tool, WORKSPACE_ROOT
 ORBIT_BASE_URL = os.environ.get("ORBIT_BASE_URL", "https://api.orbit-provider.com/v1")
 ORBIT_API_KEY = os.environ.get("ORBIT_API_KEY", "")
 DEFAULT_MODEL = os.environ.get("ORBIT_MODEL", "claude-opus-4-6")
+FALLBACK_MODEL = os.environ.get("ORBIT_FALLBACK_MODEL", "claude-sonnet-4-6")
 MAX_ITERATIONS = int(os.environ.get("CLAW_MAX_ITERATIONS", "10"))
 MAX_TOKENS = int(os.environ.get("CLAW_MAX_TOKENS", "16000"))
 
@@ -441,21 +442,27 @@ def _run_design_agent(client, model: str, user_content) -> str:
     """Run the Design Agent to produce a visual design spec.
     Returns the design spec text, or empty string on failure.
     """
+    messages = [
+        {"role": "system", "content": DESIGN_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+    print("[DESIGN-AGENT] Running design agent...")
     try:
-        messages = [
-            {"role": "system", "content": DESIGN_SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
-        ]
-        print("[DESIGN-AGENT] Running design agent...")
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=4096,
-        )
+        response = client.chat.completions.create(model=model, messages=messages, max_tokens=4096)
         spec = response.choices[0].message.content or ""
         print(f"[DESIGN-AGENT] Design spec generated: {len(spec)} chars")
         return spec
     except Exception as e:
+        if model != FALLBACK_MODEL:
+            print(f"[DESIGN-AGENT] Primary model {model} failed: {e}. Falling back to {FALLBACK_MODEL}")
+            try:
+                response = client.chat.completions.create(model=FALLBACK_MODEL, messages=messages, max_tokens=4096)
+                spec = response.choices[0].message.content or ""
+                print(f"[DESIGN-AGENT] Fallback design spec generated: {len(spec)} chars")
+                return spec
+            except Exception as e2:
+                print(f"[DESIGN-AGENT] Fallback also failed: {e2}")
+                return ""
         print(f"[DESIGN-AGENT] Error: {e}")
         return ""
 
@@ -552,23 +559,30 @@ def run_agent(
         iterations += 1
         session.total_iterations += 1
 
-        # Call the model
+        # Call the model (with fallback)
+        api_messages = [{"role": "system", "content": system_prompt}, *session.messages]
         try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    *session.messages,
-                ],
-                max_tokens=MAX_TOKENS,
-            )
+            response = client.chat.completions.create(model=model, messages=api_messages, max_tokens=MAX_TOKENS)
         except Exception as e:
-            return {
-                "session_id": session.session_id,
-                "error": f"API error: {str(e)}",
-                "iterations": iterations,
-                "tool_calls": all_tool_calls,
-            }
+            if model != FALLBACK_MODEL:
+                print(f"[AGENT] Primary model {model} failed: {e}. Falling back to {FALLBACK_MODEL}")
+                try:
+                    model = FALLBACK_MODEL
+                    response = client.chat.completions.create(model=FALLBACK_MODEL, messages=api_messages, max_tokens=MAX_TOKENS)
+                except Exception as e2:
+                    return {
+                        "session_id": session.session_id,
+                        "error": f"API error (both models failed): {str(e2)}",
+                        "iterations": iterations,
+                        "tool_calls": all_tool_calls,
+                    }
+            else:
+                return {
+                    "session_id": session.session_id,
+                    "error": f"API error: {str(e)}",
+                    "iterations": iterations,
+                    "tool_calls": all_tool_calls,
+                }
 
         # Track usage
         if response.usage:
@@ -681,18 +695,22 @@ def run_agent_stream(
 
         yield {"event": "thinking", "iteration": iterations}
 
+        api_messages = [{"role": "system", "content": system_prompt}, *session.messages]
         try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    *session.messages,
-                ],
-                max_tokens=MAX_TOKENS,
-            )
+            response = client.chat.completions.create(model=model, messages=api_messages, max_tokens=MAX_TOKENS)
         except Exception as e:
-            yield {"event": "error", "message": str(e)}
-            return
+            if model != FALLBACK_MODEL:
+                print(f"[AGENT-STREAM] Primary model {model} failed: {e}. Falling back to {FALLBACK_MODEL}")
+                yield {"event": "text", "content": f"(Switching to fallback model {FALLBACK_MODEL}...)"}
+                try:
+                    model = FALLBACK_MODEL
+                    response = client.chat.completions.create(model=FALLBACK_MODEL, messages=api_messages, max_tokens=MAX_TOKENS)
+                except Exception as e2:
+                    yield {"event": "error", "message": f"Both models failed: {str(e2)}"}
+                    return
+            else:
+                yield {"event": "error", "message": str(e)}
+                return
 
         if response.usage:
             session.total_input_tokens += response.usage.prompt_tokens or 0
