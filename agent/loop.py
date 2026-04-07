@@ -25,7 +25,7 @@ from .tools import TOOL_SCHEMAS, execute_tool, WORKSPACE_ROOT
 
 ORBIT_BASE_URL = os.environ.get("ORBIT_BASE_URL", "https://api.orbit-provider.com/v1")
 ORBIT_API_KEY = os.environ.get("ORBIT_API_KEY", "")
-DEFAULT_MODEL = os.environ.get("ORBIT_MODEL", "claude-sonnet-4-6")
+DEFAULT_MODEL = os.environ.get("ORBIT_MODEL", "claude-opus-4-6")
 MAX_ITERATIONS = int(os.environ.get("CLAW_MAX_ITERATIONS", "10"))
 MAX_TOKENS = int(os.environ.get("CLAW_MAX_TOKENS", "16000"))
 
