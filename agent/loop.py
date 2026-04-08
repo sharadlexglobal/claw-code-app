@@ -20,6 +20,7 @@ from typing import Any, Dict, Generator, List, Optional
 from openai import OpenAI
 
 from .tools import TOOL_SCHEMAS, execute_tool, WORKSPACE_ROOT
+from .skills import list_skills, get_skill, find_matching_skills, render_skill
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,8 @@ You can make multiple tool calls in one response.
 4. bash(command) — Run a shell command
 5. list_directory(directory) — List files
 6. search_files(pattern, directory) — Search file contents
+7. web_search(query, max_results) — Search the web for information
+8. fetch_url(url) — Fetch and read content from a web URL
 
 # Strategy for Building Websites/Apps
 
@@ -91,7 +94,7 @@ TOOL_CALL_PATTERN = re.compile(
     re.DOTALL
 )
 
-TOOL_NAMES = {"read_file", "write_file", "edit_file", "bash", "list_directory", "search_files"}
+TOOL_NAMES = {"read_file", "write_file", "edit_file", "bash", "list_directory", "search_files", "web_search", "fetch_url"}
 
 
 def _extract_json_objects(text: str) -> list[dict]:
@@ -539,6 +542,30 @@ def run_agent(
 
     system_prompt = AGENT_SYSTEM_PROMPT.format(workspace_root=workspace_path)
 
+    # ── Skill Injection ──
+    skill_name_used = None
+    if user_message.startswith("/"):
+        # Slash command: /skill-name optional arguments
+        parts = user_message[1:].split(None, 1)
+        slash_name = parts[0] if parts else ""
+        slash_args = parts[1] if len(parts) > 1 else ""
+        skill = get_skill(slash_name)
+        if skill:
+            rendered = render_skill(skill, slash_args)
+            system_prompt += f"\n\n# ACTIVE SKILL: {skill.name}\n{skill.description}\n\n{rendered}"
+            skill_name_used = skill.name
+            # Replace user message with just the arguments (or original if no args)
+            user_message = slash_args or user_message
+    else:
+        # Auto-discover matching skills
+        all_skills = list_skills()
+        matched = find_matching_skills(user_message, all_skills)
+        if matched:
+            top = matched[0]
+            rendered = render_skill(top)
+            system_prompt += f"\n\n# SUGGESTED SKILL: {top.name}\n{top.description}\n\n{rendered}"
+            skill_name_used = top.name
+
     # Add user message (with attachments if any)
     user_content = _build_user_content(user_message, attachments)
 
@@ -670,9 +697,34 @@ def run_agent_stream(
 
     system_prompt = AGENT_SYSTEM_PROMPT.format(workspace_root=workspace_path)
 
+    # ── Skill Injection ──────────────────────────────────────────────────
+    skill_name_used = None
+    if user_message.startswith("/"):
+        parts = user_message[1:].split(None, 1)
+        slash_name = parts[0] if parts else ""
+        slash_args = parts[1] if len(parts) > 1 else ""
+        skill = get_skill(slash_name)
+        if skill:
+            rendered = render_skill(skill, slash_args)
+            system_prompt += f"\n\n# ACTIVE SKILL: {skill.name}\n{skill.description}\n\n{rendered}"
+            skill_name_used = skill.name
+            user_message = slash_args or user_message
+    else:
+        all_skills = list_skills()
+        matched = find_matching_skills(user_message, all_skills)
+        if matched:
+            top = matched[0]
+            rendered = render_skill(top)
+            system_prompt += f"\n\n# SUGGESTED SKILL: {top.name}\n{top.description}\n\n{rendered}"
+            skill_name_used = top.name
+
     user_content = _build_user_content(user_message, attachments)
 
     yield {"event": "session", "session_id": session.session_id, "workspace": workspace_path}
+
+    # Emit skill event if one was activated
+    if skill_name_used:
+        yield {"event": "skill", "name": skill_name_used, "status": "active"}
 
     # ── Design Agent Phase ──────────────────────────────────────────────────
     design_spec = ""

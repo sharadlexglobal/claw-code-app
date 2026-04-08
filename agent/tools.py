@@ -166,6 +166,91 @@ def run_bash(command: str, timeout: int | None = None) -> dict:
         return {"error": str(e)}
 
 
+# ── Tool: web_search ─────────────────────────────────────────────────────
+
+def web_search(query: str, max_results: int = 5) -> dict:
+    """Search the web using DuckDuckGo HTML and return results."""
+    import urllib.request
+    import urllib.parse
+    from html.parser import HTMLParser
+
+    class DDGParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.results = []
+            self._in_result = False
+            self._in_title = False
+            self._in_snippet = False
+            self._current = {}
+
+        def handle_starttag(self, tag, attrs):
+            attrs_d = dict(attrs)
+            cls = attrs_d.get("class", "")
+            if tag == "a" and "result__a" in cls:
+                self._in_title = True
+                self._current = {"title": "", "url": attrs_d.get("href", ""), "snippet": ""}
+            elif tag == "a" and "result__snippet" in cls:
+                self._in_snippet = True
+
+        def handle_endtag(self, tag):
+            if tag == "a" and self._in_title:
+                self._in_title = False
+            elif tag == "a" and self._in_snippet:
+                self._in_snippet = False
+                if self._current.get("title"):
+                    self.results.append(self._current)
+                self._current = {}
+
+        def handle_data(self, data):
+            if self._in_title:
+                self._current["title"] = self._current.get("title", "") + data
+            elif self._in_snippet:
+                self._current["snippet"] = self._current.get("snippet", "") + data
+
+    try:
+        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; ClawCode/1.0)",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+
+        parser = DDGParser()
+        parser.feed(html)
+        results = parser.results[:max_results]
+
+        # Clean up DuckDuckGo redirect URLs
+        for r in results:
+            u = r.get("url", "")
+            if "uddg=" in u:
+                try:
+                    r["url"] = urllib.parse.unquote(u.split("uddg=")[1].split("&")[0])
+                except Exception:
+                    pass
+
+        return {"query": query, "results": results, "count": len(results)}
+    except Exception as e:
+        return {"query": query, "error": str(e), "results": []}
+
+
+def fetch_url(url: str) -> dict:
+    """Fetch readable content from a URL using Jina Reader API."""
+    import urllib.request
+
+    try:
+        jina_url = f"https://r.jina.ai/{url}"
+        req = urllib.request.Request(jina_url, headers={
+            "Accept": "text/plain",
+            "User-Agent": "Mozilla/5.0 (compatible; ClawCode/1.0)",
+        })
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            content = resp.read().decode("utf-8", errors="replace")
+        # Truncate to prevent context overflow
+        return {"url": url, "content": content[:15000], "truncated": len(content) > 15000}
+    except Exception as e:
+        return {"url": url, "error": str(e)}
+
+
 # ── Tool Registry ────────────────────────────────────────────────────────────
 
 TOOL_SCHEMAS = [
@@ -261,6 +346,35 @@ TOOL_SCHEMAS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for information. Returns titles, URLs, and snippets from search results.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "max_results": {"type": "integer", "description": "Max results to return (default 5)", "default": 5},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_url",
+            "description": "Fetch and read the content of a web page URL. Returns readable text extracted from the page.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The URL to fetch"},
+                },
+                "required": ["url"],
+            },
+        },
+    },
 ]
 
 
@@ -273,6 +387,8 @@ def execute_tool(name: str, arguments: dict[str, Any]) -> dict:
         "list_directory": list_directory,
         "search_files": search_files,
         "bash": run_bash,
+        "web_search": web_search,
+        "fetch_url": fetch_url,
     }
     handler = handlers.get(name)
     if handler is None:

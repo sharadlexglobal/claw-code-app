@@ -10,8 +10,10 @@
     --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
     --green: #3fb950; --red: #f85149; --yellow: #d29922;
     --orange: #f0883e; --purple: #bc8cff; --border: #30363d;
+    --glow: rgba(88,166,255,0.15); --cf-orange: #f48120;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  ::selection { background: var(--accent); color: #fff; }
   body { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
   /* Header */
@@ -22,6 +24,7 @@
   .header-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
   .preview-toggle { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); font-size: 11px; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; transition: all .2s; }
   .preview-toggle:hover, .preview-toggle.active { color: var(--accent); border-color: var(--accent); }
+  .preview-toggle:active { transform: scale(0.97); }
 
   /* Main Split Layout */
   .main { flex: 1; display: flex; overflow: hidden; }
@@ -33,8 +36,10 @@
   /* Chat Panel */
   .chat-panel { display: flex; flex-direction: column; min-width: 300px; }
   .messages { flex: 1; overflow-y: auto; padding: 16px; }
-  .messages::-webkit-scrollbar { width: 5px; }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
   .messages::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+  .messages::-webkit-scrollbar-thumb:hover { background: var(--text2); }
 
   .msg { margin-bottom: 14px; animation: fadeIn .25s; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -73,12 +78,13 @@
   /* Input */
   .input-area { padding: 12px 16px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
   .input-row { display: flex; gap: 8px; align-items: flex-end; }
-  .input-row textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 14px; font-family: inherit; font-size: 13px; resize: none; min-height: 42px; max-height: 160px; outline: none; transition: border-color .2s; }
-  .input-row textarea:focus { border-color: var(--accent); }
+  .input-row textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 14px; font-family: inherit; font-size: 13px; resize: none; min-height: 42px; max-height: 160px; outline: none; transition: border-color .2s, box-shadow .2s; }
+  .input-row textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
   .input-row textarea::placeholder { color: var(--text2); }
   .attach-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); width: 42px; height: 42px; border-radius: 8px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; }
-  .attach-btn:hover { color: var(--accent); border-color: var(--accent); }
-  .send-btn { background: var(--accent); border: none; color: #fff; width: 42px; height: 42px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .attach-btn:hover { color: var(--accent); border-color: var(--accent); transform: scale(1.05); }
+  .send-btn { background: var(--accent); border: none; color: #fff; width: 42px; height: 42px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all .2s; }
+  .send-btn:hover:not(:disabled) { transform: scale(1.05); opacity: .9; }
   .send-btn:disabled { opacity: .3; cursor: not-allowed; }
   .input-hint { font-size: 10px; color: var(--text2); margin-top: 4px; text-align: center; }
 
@@ -96,9 +102,10 @@
   .preview-panel.hidden { display: none; }
 
   .preview-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg3); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  .preview-toolbar .url-bar { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 11px; padding: 4px 10px; border-radius: 6px; font-family: inherit; outline: none; }
-  .preview-toolbar .tb-btn { background: none; border: 1px solid var(--border); color: var(--text2); font-size: 12px; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-family: inherit; }
-  .preview-toolbar .tb-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .preview-toolbar .url-bar { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 11px; padding: 4px 10px; border-radius: 6px; font-family: inherit; outline: none; transition: border-color .2s, box-shadow .2s; }
+  .preview-toolbar .url-bar:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
+  .preview-toolbar .tb-btn { background: none; border: 1px solid var(--border); color: var(--text2); font-size: 12px; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-family: inherit; transition: all .2s; }
+  .preview-toolbar .tb-btn:hover { color: var(--accent); border-color: var(--accent); transform: scale(1.05); }
 
   .preview-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--bg2); }
   .preview-tab { padding: 8px 18px; font-size: 12px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; font-family: inherit; font-weight: 500; letter-spacing: .3px; }
@@ -131,22 +138,267 @@
   .stats-bar { display: flex; gap: 16px; padding: 6px 12px; background: var(--bg3); border-top: 1px solid var(--border); font-size: 10px; color: var(--text2); flex-shrink: 0; }
   .stats-bar span { display: flex; align-items: center; gap: 4px; }
 
+  /* Deploy dropdown */
+  .deploy-wrap { position: relative; }
+  .deploy-btn { background: none; border: 1px solid var(--border); color: var(--text2); font-size: 12px; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 4px; transition: all .2s; }
+  .deploy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .deploy-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 4px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; min-width: 200px; z-index: 50; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .deploy-menu.open { display: block; }
+  .deploy-menu-item { padding: 8px 14px; font-size: 12px; color: var(--text2); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all .15s; }
+  .deploy-menu-item:hover { background: var(--bg3); color: var(--text); }
+  .deploy-menu-item.disabled { opacity: .4; pointer-events: none; }
+  .deploy-menu-sep { height: 1px; background: var(--border); margin: 2px 8px; }
+  .deploy-status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .deploy-status-dot.connected { background: var(--green); }
+  .deploy-status-dot.disconnected { background: var(--red); }
+  .deploy-menu-item[title] { position: relative; }
+
+  /* ── Modal Base ─────────────────────────────────────────── */
+  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.6); z-index: 100; display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 480px; max-height: 80vh; overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,.5); }
+  .modal-box::-webkit-scrollbar { width: 6px; }
+  .modal-box::-webkit-scrollbar-track { background: transparent; }
+  .modal-box::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+  .modal-box h3 { margin: 0 0 16px; font-size: 16px; color: var(--text); }
+  .modal-field { margin-bottom: 14px; }
+  .modal-field label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+  .modal-field input, .modal-field select, .modal-field textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-family: inherit; font-size: 13px; box-sizing: border-box; outline: none; transition: border-color .2s, box-shadow .2s; }
+  .modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
+  .modal-field textarea { min-height: 120px; resize: vertical; }
+  .modal-field .field-row { display: flex; gap: 6px; }
+  .modal-field .field-row input { flex: 1; }
+  .modal-field .reveal-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap; transition: all .2s; }
+  .modal-field .reveal-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .modal-field .field-hint { font-size: 10px; color: var(--text2); margin-top: 3px; opacity: .7; }
+  .modal-field .char-count { font-size: 10px; color: var(--text2); margin-top: 2px; text-align: right; opacity: .6; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+  .modal-actions .btn-save { background: var(--accent); color: #000; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; transition: all .2s; }
+  .modal-actions .btn-save:hover { opacity: .9; transform: scale(1.02); }
+  .modal-actions .btn-cancel { background: none; border: 1px solid var(--border); color: var(--text2); padding: 8px 20px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; transition: all .2s; }
+  .modal-actions .btn-cancel:hover { border-color: var(--text2); color: var(--text); }
+
+  /* ── Settings Modal — Grouped Sections ──────────────────── */
+  .settings-section { margin-bottom: 20px; }
+  .settings-section-header { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .conn-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .conn-status.on { background: var(--green); box-shadow: 0 0 6px rgba(63,185,80,.4); }
+  .conn-status.off { background: var(--red); opacity: .6; }
+
+  /* ── Skills Modal — Tabbed UI ──────────────────────────── */
+  .skills-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .skills-tab { padding: 8px 16px; font-size: 12px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; font-family: inherit; font-weight: 500; }
+  .skills-tab:hover { color: var(--text); }
+  .skills-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .skills-tab-panel { display: none; }
+  .skills-tab-panel.active { display: block; }
+
+  /* Skills — Search */
+  .skill-search { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 12px; border-radius: 6px; font-family: inherit; font-size: 12px; outline: none; margin-bottom: 12px; transition: border-color .2s, box-shadow .2s; }
+  .skill-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
+  .skill-search::placeholder { color: var(--text2); }
+
+  /* Skills — List */
+  .skill-list { max-height: 280px; overflow-y: auto; }
+  .skill-list::-webkit-scrollbar { width: 5px; }
+  .skill-list::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+  .skill-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; transition: all .2s; background: var(--bg); }
+  .skill-item:hover { border-color: var(--accent); background: rgba(88,166,255,0.04); }
+  .skill-item .skill-info { flex: 1; min-width: 0; }
+  .skill-item .skill-name { font-weight: 600; font-size: 13px; }
+  .skill-item .skill-name .slash-prefix { color: var(--accent); }
+  .skill-item .skill-desc { font-size: 11px; color: var(--text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .skill-item .skill-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: 12px; }
+  .skill-toggle { position: relative; width: 32px; height: 18px; background: var(--bg3); border-radius: 9px; cursor: pointer; border: 1px solid var(--border); transition: all .2s; }
+  .skill-toggle.on { background: var(--green); border-color: var(--green); }
+  .skill-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .skill-toggle.on::after { transform: translateX(14px); }
+  .skill-item .skill-actions { display: flex; gap: 4px; }
+  .skill-item .skill-actions button { background: none; border: 1px solid transparent; color: var(--text2); padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; transition: all .2s; }
+  .skill-item .skill-actions button:hover { border-color: var(--border); color: var(--text); }
+  .skill-item .skill-actions button.del-btn:hover { color: var(--red); border-color: var(--red); }
+
+  /* Skills — Empty */
+  .skill-empty { text-align: center; padding: 24px 12px; color: var(--text2); font-size: 12px; }
+  .skill-empty .empty-icon { font-size: 32px; margin-bottom: 8px; opacity: .4; }
+
+  /* Skills — Import area */
+  .skill-import-area { margin-top: 14px; }
+  .skill-import-area summary { cursor: pointer; color: var(--text2); font-size: 12px; margin-bottom: 8px; transition: color .2s; }
+  .skill-import-area summary:hover { color: var(--accent); }
+
+  /* Skills — Marketplace placeholder */
+  .marketplace-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; color: var(--text2); }
+  .marketplace-placeholder .mp-icon { font-size: 40px; margin-bottom: 12px; opacity: .4; }
+  .marketplace-placeholder .mp-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .marketplace-placeholder .mp-desc { font-size: 12px; line-height: 1.6; }
+
+  /* Slash autocomplete — Professional */
+  .slash-autocomplete { position: absolute; bottom: 100%; left: 0; right: 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px 10px 0 0; max-height: 240px; overflow-y: auto; display: none; z-index: 20; box-shadow: 0 -4px 16px rgba(0,0,0,.3); }
+  .slash-autocomplete.open { display: block; }
+  .slash-autocomplete::-webkit-scrollbar { width: 5px; }
+  .slash-autocomplete::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+  .slash-item { padding: 10px 14px; cursor: pointer; display: flex; align-items: baseline; gap: 10px; font-size: 12px; color: var(--text2); transition: background .15s; border-bottom: 1px solid rgba(48,54,61,0.4); }
+  .slash-item:last-child { border-bottom: none; }
+  .slash-item:hover, .slash-item.selected { background: var(--bg3); color: var(--text); }
+  .slash-item .slash-name { color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .slash-item .slash-name .match-bold { color: #fff; }
+  .slash-item .slash-desc { color: var(--text2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .slash-empty { padding: 12px 14px; text-align: center; color: var(--text2); font-size: 12px; opacity: .7; }
+
+  /* ── Toast Notifications ────────────────────────────────── */
+  .toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 8px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--bg2); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: toastIn .3s ease; min-width: 240px; max-width: 380px; }
+  .toast.removing { animation: toastOut .25s ease forwards; }
+  .toast-icon { font-size: 16px; flex-shrink: 0; }
+  .toast-msg { flex: 1; line-height: 1.4; }
+  .toast.success { border-color: var(--green); }
+  .toast.success .toast-icon { color: var(--green); }
+  .toast.error { border-color: var(--red); }
+  .toast.error .toast-icon { color: var(--red); }
+  .toast.info { border-color: var(--accent); }
+  .toast.info .toast-icon { color: var(--accent); }
+  .toast.warning { border-color: var(--yellow); }
+  .toast.warning .toast-icon { color: var(--yellow); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
+
+  /* ── App-level Nav ────────────────────────────────────── */
+  .app-nav { display: flex; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .app-nav-tab { padding: 8px 20px; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; font-family: inherit; letter-spacing: .3px; }
+  .app-nav-tab:hover { color: var(--text); background: var(--bg3); }
+  .app-nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .app-nav-tab.cf-tab.active { color: var(--cf-orange); border-bottom-color: var(--cf-orange); }
+  .app-view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+  .app-view.active { display: flex; }
+
+  /* ── Content Factory ────────────────────────────────────── */
+  .cf-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .cf-subnav { display: flex; background: var(--bg3); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .cf-subnav-tab { padding: 8px 18px; font-size: 11px; font-weight: 600; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; font-family: inherit; text-transform: uppercase; letter-spacing: .5px; }
+  .cf-subnav-tab:hover { color: var(--text); }
+  .cf-subnav-tab.active { color: var(--cf-orange); border-bottom-color: var(--cf-orange); }
+  .cf-view { display: none; flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .cf-view.active { display: block; }
+
+  /* CF — Persona Cards */
+  .cf-persona-row { display: flex; gap: 14px; margin-bottom: 18px; }
+  .cf-persona-card { flex: 1; background: var(--bg2); border: 2px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; transition: all .2s; }
+  .cf-persona-card:hover { border-color: var(--cf-orange); }
+  .cf-persona-card.selected { border-color: var(--cf-orange); background: rgba(244,129,32,0.06); }
+  .cf-persona-card .p-name { font-size: 14px; font-weight: 700; color: var(--text); }
+  .cf-persona-card .p-title { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .cf-persona-card .p-exp { font-size: 10px; color: var(--cf-orange); margin-top: 4px; font-weight: 600; }
+
+  /* CF — Form */
+  .cf-form-row { margin-bottom: 14px; }
+  .cf-form-row label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .cf-form-row select, .cf-form-row textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font-family: inherit; font-size: 13px; outline: none; transition: border-color .2s, box-shadow .2s; }
+  .cf-form-row select:focus, .cf-form-row textarea:focus { border-color: var(--cf-orange); box-shadow: 0 0 0 3px rgba(244,129,32,0.15); }
+  .cf-form-row textarea { min-height: 120px; resize: vertical; }
+
+  /* CF — Content Type Chips */
+  .cf-type-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+  .cf-type-chip { background: var(--bg); border: 1px solid var(--border); color: var(--text2); padding: 5px 12px; border-radius: 16px; font-size: 11px; cursor: pointer; transition: all .2s; font-family: inherit; }
+  .cf-type-chip:hover { border-color: var(--cf-orange); color: var(--text); }
+  .cf-type-chip.selected { background: var(--cf-orange); color: #fff; border-color: var(--cf-orange); }
+
+  /* CF — Generate Button */
+  .cf-generate-btn { background: var(--cf-orange); color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .2s; }
+  .cf-generate-btn:hover:not(:disabled) { opacity: .9; transform: scale(1.02); }
+  .cf-generate-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* CF — Results */
+  .cf-results { margin-top: 20px; display: none; }
+  .cf-results.visible { display: block; }
+  .cf-result-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; }
+  .cf-result-tab { padding: 4px 10px; font-size: 10px; color: var(--text2); cursor: pointer; border-radius: 12px; border: 1px solid var(--border); transition: all .2s; font-family: inherit; }
+  .cf-result-tab:hover { color: var(--text); border-color: var(--text2); }
+  .cf-result-tab.active { background: var(--cf-orange); color: #fff; border-color: var(--cf-orange); }
+  .cf-result-tab.error { border-color: var(--red); color: var(--red); }
+  .cf-result-body { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; line-height: 1.6; max-height: 400px; overflow-y: auto; }
+  .cf-result-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .cf-result-actions button { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: inherit; transition: all .2s; }
+  .cf-result-actions button:hover { color: var(--text); border-color: var(--accent); }
+
+  /* CF — Prompt Lab */
+  .cf-prompt-layout { display: flex; gap: 16px; height: calc(100vh - 180px); }
+  .cf-prompt-sidebar { width: 240px; overflow-y: auto; flex-shrink: 0; border-right: 1px solid var(--border); padding-right: 12px; }
+  .cf-prompt-sidebar .ps-group { margin-bottom: 14px; }
+  .cf-prompt-sidebar .ps-group-title { font-size: 10px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px; }
+  .cf-prompt-sidebar .ps-slot { padding: 6px 10px; font-size: 11px; color: var(--text2); cursor: pointer; border-radius: 6px; transition: all .15s; display: flex; align-items: center; gap: 6px; }
+  .cf-prompt-sidebar .ps-slot:hover { background: var(--bg3); color: var(--text); }
+  .cf-prompt-sidebar .ps-slot.active { background: var(--bg3); color: var(--cf-orange); }
+  .cf-prompt-sidebar .ps-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cf-orange); flex-shrink: 0; display: none; }
+  .cf-prompt-sidebar .ps-slot.has-custom .ps-dot { display: inline-block; }
+  .cf-prompt-editor { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .cf-prompt-editor .pe-header { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+  .cf-prompt-editor .pe-drafts { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .cf-prompt-editor .pe-draft-chip { padding: 3px 10px; font-size: 10px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; color: var(--text2); transition: all .15s; font-family: inherit; background: var(--bg); }
+  .cf-prompt-editor .pe-draft-chip:hover { border-color: var(--text2); color: var(--text); }
+  .cf-prompt-editor .pe-draft-chip.active { background: var(--cf-orange); color: #fff; border-color: var(--cf-orange); }
+  .cf-prompt-editor .pe-draft-chip.is-active-draft { box-shadow: 0 0 0 2px var(--green); }
+  .cf-prompt-editor textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 12px; border-radius: 8px; font-family: inherit; font-size: 12px; resize: none; outline: none; min-height: 200px; transition: border-color .2s; }
+  .cf-prompt-editor textarea:focus { border-color: var(--cf-orange); }
+  .cf-prompt-editor .pe-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .cf-prompt-editor .pe-actions button { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: inherit; transition: all .2s; }
+  .cf-prompt-editor .pe-actions button:hover { color: var(--text); border-color: var(--cf-orange); }
+  .cf-prompt-editor .pe-actions button.pe-primary { background: var(--cf-orange); color: #fff; border-color: var(--cf-orange); }
+  .cf-prompt-test-output { margin-top: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; white-space: pre-wrap; font-size: 12px; max-height: 200px; overflow-y: auto; display: none; }
+  .cf-prompt-test-output.visible { display: block; }
+
+  /* CF — Library */
+  .cf-lib-filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .cf-lib-filters select, .cf-lib-filters input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-family: inherit; font-size: 12px; outline: none; }
+  .cf-lib-filters select:focus, .cf-lib-filters input:focus { border-color: var(--cf-orange); }
+  .cf-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .cf-lib-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; transition: all .2s; }
+  .cf-lib-card:hover { border-color: var(--cf-orange); transform: translateY(-2px); }
+  .cf-lib-card .lc-persona { font-size: 10px; color: var(--cf-orange); font-weight: 600; text-transform: uppercase; }
+  .cf-lib-card .lc-topic { font-size: 13px; font-weight: 600; color: var(--text); margin: 4px 0; }
+  .cf-lib-card .lc-domain { font-size: 10px; color: var(--text2); background: var(--bg3); display: inline-block; padding: 2px 8px; border-radius: 8px; }
+  .cf-lib-card .lc-date { font-size: 10px; color: var(--text2); margin-top: 6px; }
+  .cf-lib-card .lc-types { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+  .cf-lib-card .lc-type-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cf-orange); opacity: .6; }
+  .cf-lib-card .lc-r2 { font-size: 10px; color: var(--green); margin-top: 4px; }
+  .cf-lib-empty { text-align: center; padding: 40px; color: var(--text2); font-size: 13px; }
+
+  /* CF — Library Detail Modal */
+  .cf-detail-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.6); z-index: 150; display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+  .cf-detail-overlay.open { display: flex; }
+  .cf-detail-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 700px; max-height: 85vh; overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,.5); }
+
   @media (max-width: 768px) {
     .preview-panel { display: none !important; }
     .divider { display: none; }
     .chat-panel { width: 100% !important; }
+    .cf-prompt-layout { flex-direction: column; height: auto; }
+    .cf-prompt-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; padding-bottom: 12px; }
+    .cf-detail-box { width: 95%; }
   }
 </style>
 </head>
 <body>
 
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
 <div class="header">
   <div class="logo">&#9889; Claw Code</div>
   <div class="model-badge">claude-sonnet-4-6</div>
+  <button class="preview-toggle" onclick="toggleSkillsModal()">&#128218; Skills</button>
   <button class="preview-toggle active" id="previewToggle" onclick="togglePreview()">&#9638; Preview</button>
+  <button class="preview-toggle" onclick="toggleSettingsModal()">&#9881;</button>
   <div class="header-status"><div class="dot" id="statusDot"></div><span id="statusText">Ready</span></div>
 </div>
 
+<div class="app-nav">
+  <div class="app-nav-tab active" onclick="switchAppView('agent')">&#9889; Coding Agent</div>
+  <div class="app-nav-tab cf-tab" onclick="switchAppView('factory')">&#128240; Content Factory</div>
+</div>
+
+<!-- Agent View -->
+<div class="app-view active" id="viewAgent" style="display:flex;flex-direction:column;">
 <div class="main">
   <!-- Chat Panel -->
   <div class="chat-panel" id="chatPanel" style="width:50%;">
@@ -162,15 +414,16 @@ Try: <i>"Build a portfolio website for John Doe, a photographer"</i>
 The <b>Preview panel</b> on the right will show your website live as I build it!</div></div>
       </div>
     </div>
-    <div class="input-area">
+    <div class="input-area" style="position:relative;">
+      <div class="slash-autocomplete" id="slashAutocomplete"></div>
       <div class="attach-chips" id="attachChips"></div>
       <div class="input-row">
         <button class="attach-btn" onclick="document.getElementById('fileInput').click()" title="Attach image or file">&#128206;</button>
         <input type="file" id="fileInput" multiple accept="image/*,.html,.css,.js,.json,.txt,.py,.ts,.tsx,.jsx,.md,.csv,.xml,.yaml,.yml,.env,.sh,.sql" style="display:none" onchange="handleFiles(this.files)">
-        <textarea id="input" placeholder="Tell me what to build... (attach images or files)" rows="1" autofocus></textarea>
+        <textarea id="input" placeholder="Tell me what to build... (type / for skills)" rows="1" autofocus></textarea>
         <button class="send-btn" id="sendBtn" onclick="sendMessage()">&#9654;</button>
       </div>
-      <div class="input-hint">Enter to send &middot; Shift+Enter for new line &middot; &#128206; Attach images or code files</div>
+      <div class="input-hint">Enter to send &middot; Shift+Enter for new line &middot; /skill for commands &middot; &#128206; Attach files</div>
     </div>
   </div>
 
@@ -187,6 +440,21 @@ The <b>Preview panel</b> on the right will show your website live as I build it!
       <button class="tb-btn" onclick="refreshPreview()" title="Refresh">&#8635;</button>
       <input class="url-bar" id="urlBar" readonly value="No preview yet">
       <button class="tb-btn" onclick="openInNewTab()" title="Open in new tab">&#8599;</button>
+      <div class="deploy-wrap">
+        <button class="deploy-btn" onclick="toggleDeployMenu()">&#128640; Deploy &#9660;</button>
+        <div class="deploy-menu" id="deployMenu">
+          <div class="deploy-menu-item" onclick="downloadZip()">&#128230; Download ZIP</div>
+          <div class="deploy-menu-sep"></div>
+          <div class="deploy-menu-item" onclick="deployGitHub()" id="deployGhBtn">
+            <span class="deploy-status-dot disconnected" id="deployGhDot"></span>
+            &#128025; Push to GitHub
+          </div>
+          <div class="deploy-menu-item" onclick="deployRender()" id="deployRenderBtn">
+            <span class="deploy-status-dot disconnected" id="deployRenderDot"></span>
+            &#9889; Deploy to Render
+          </div>
+        </div>
+      </div>
     </div>
     <div class="preview-files" id="previewFiles"></div>
     <div class="preview-frame-wrap" id="previewFrameWrap">
@@ -206,6 +474,262 @@ The <b>Preview panel</b> on the right will show your website live as I build it!
   <span>&#9889; Tokens: <b id="statTokens">0</b></span>
   <span>&#128196; Files: <b id="statFiles">0</b></span>
 </div>
+</div><!-- /viewAgent -->
+
+<!-- Content Factory View -->
+<div class="app-view" id="viewFactory">
+<div class="cf-container">
+  <div class="cf-subnav">
+    <div class="cf-subnav-tab active" onclick="switchCfView('create')">&#9998; Create</div>
+    <div class="cf-subnav-tab" onclick="switchCfView('prompts')">&#128221; Prompt Lab</div>
+    <div class="cf-subnav-tab" onclick="switchCfView('library')">&#128218; Library</div>
+  </div>
+
+  <!-- Create View -->
+  <div class="cf-view active" id="cfViewCreate">
+    <h3 style="font-size:16px;margin-bottom:14px;color:var(--cf-orange);">Create Content</h3>
+
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:6px;display:block;">Select Persona</label>
+    <div class="cf-persona-row" id="cfPersonaRow"></div>
+
+    <div class="cf-form-row">
+      <label>Legal Domain</label>
+      <select id="cfDomain"></select>
+    </div>
+
+    <div class="cf-form-row">
+      <label>Raw Input (Legal Topic / News / Question)</label>
+      <textarea id="cfRawInput" placeholder="Paste your legal topic, news, judgment summary, or question here..."></textarea>
+    </div>
+
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:6px;display:block;">Content Types (leave blank for all)</label>
+    <div class="cf-type-chips" id="cfTypeChips"></div>
+
+    <div id="cfSkillBadges" style="margin-bottom:14px;display:none;">
+      <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;font-weight:600;display:block;margin-bottom:6px;">Auto-Applied Skills</label>
+      <div id="cfSkillBadgeList" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+    </div>
+
+    <button class="cf-generate-btn" id="cfGenerateBtn" onclick="cfGenerate()">&#9889; Generate All Content</button>
+
+    <div class="cf-results" id="cfResults">
+      <div class="cf-result-tabs" id="cfResultTabs"></div>
+      <div class="cf-result-body" id="cfResultBody"></div>
+      <div class="cf-result-actions">
+        <button onclick="cfCopyResult()">&#128203; Copy</button>
+        <button onclick="cfDownloadResult()">&#128190; Download</button>
+        <button onclick="cfUploadToR2()">&#9729; Upload to R2</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompt Lab View -->
+  <div class="cf-view" id="cfViewPrompts">
+    <h3 style="font-size:16px;margin-bottom:14px;color:var(--cf-orange);">Prompt Lab</h3>
+    <div class="cf-prompt-layout">
+      <div class="cf-prompt-sidebar" id="cfPromptSidebar"></div>
+      <div class="cf-prompt-editor" id="cfPromptEditor">
+        <div class="pe-header" id="cfPeHeader">Select a prompt slot from the sidebar</div>
+        <div class="pe-drafts" id="cfPeDrafts"></div>
+        <textarea id="cfPeTextarea" placeholder="Write your custom prompt here..." style="display:none;"></textarea>
+        <div class="pe-actions" id="cfPeActions" style="display:none;">
+          <button class="pe-primary" onclick="cfSaveDraft()">Save Draft</button>
+          <button onclick="cfSetActive()">Set Active</button>
+          <button onclick="cfTestPrompt()">Test</button>
+          <button onclick="cfDeleteDraft()" style="color:var(--red)">Delete</button>
+        </div>
+        <div class="cf-prompt-test-output" id="cfTestOutput"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Library View -->
+  <div class="cf-view" id="cfViewLibrary">
+    <h3 style="font-size:16px;margin-bottom:14px;color:var(--cf-orange);">Content Library</h3>
+    <div class="cf-lib-filters">
+      <select id="cfLibPersona" onchange="cfLoadLibrary()">
+        <option value="">All Personas</option>
+      </select>
+      <select id="cfLibDomain" onchange="cfLoadLibrary()">
+        <option value="">All Domains</option>
+      </select>
+      <input type="text" id="cfLibSearch" placeholder="Search topics..." oninput="cfLoadLibrary()">
+    </div>
+    <div class="cf-lib-grid" id="cfLibGrid">
+      <div class="cf-lib-empty">No content yet. Create some in the Create tab!</div>
+    </div>
+  </div>
+</div>
+</div><!-- /viewFactory -->
+
+<!-- Library Detail Modal -->
+<div class="cf-detail-overlay" id="cfDetailOverlay">
+  <div class="cf-detail-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="cfDetailTitle" style="font-size:16px;color:var(--cf-orange);margin:0;"></h3>
+      <button onclick="document.getElementById('cfDetailOverlay').classList.remove('open')" style="background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;">&times;</button>
+    </div>
+    <div id="cfDetailMeta" style="font-size:11px;color:var(--text2);margin-bottom:12px;"></div>
+    <div class="cf-result-tabs" id="cfDetailTabs"></div>
+    <div class="cf-result-body" id="cfDetailBody" style="margin-top:12px;"></div>
+    <div class="cf-result-actions" style="margin-top:12px;">
+      <button onclick="cfDetailCopy()">&#128203; Copy</button>
+      <button onclick="cfDetailUpload()">&#9729; Upload to R2</button>
+      <button onclick="cfDetailDelete()" style="color:var(--red)">&#128465; Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box">
+    <h3>&#9881; Settings</h3>
+
+    <div class="settings-section">
+      <div class="settings-section-header">&#128279; Connections</div>
+      <div class="modal-field">
+        <label><span class="conn-status off" id="ghConnDot"></span> &nbsp;GitHub Token</label>
+        <div class="field-row">
+          <input type="password" id="settGithub" placeholder="ghp_xxxxxxxxxxxx">
+          <button class="reveal-btn" onclick="toggleReveal('settGithub')">Show</button>
+        </div>
+        <div class="field-hint">Required for Push to GitHub. Generate at github.com/settings/tokens</div>
+      </div>
+      <div class="modal-field">
+        <label><span class="conn-status off" id="renderConnDot"></span> &nbsp;Render API Key</label>
+        <div class="field-row">
+          <input type="password" id="settRender" placeholder="rnd_xxxxxxxxxxxx">
+          <button class="reveal-btn" onclick="toggleReveal('settRender')">Show</button>
+        </div>
+        <div class="field-hint">Required for Render deploy. Get key at dashboard.render.com/settings</div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-header"><span class="conn-status off" id="r2ConnDot"></span> &nbsp;Cloudflare R2 (Content Storage)</div>
+      <div class="modal-field">
+        <label>R2 Account ID</label>
+        <input type="text" id="settR2Account" placeholder="your-account-id">
+      </div>
+      <div class="modal-field">
+        <label>R2 Access Key</label>
+        <div class="field-row">
+          <input type="password" id="settR2AccessKey" placeholder="access-key">
+          <button class="reveal-btn" onclick="toggleReveal('settR2AccessKey')">Show</button>
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>R2 Secret Key</label>
+        <div class="field-row">
+          <input type="password" id="settR2SecretKey" placeholder="secret-key">
+          <button class="reveal-btn" onclick="toggleReveal('settR2SecretKey')">Show</button>
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>R2 Bucket Name</label>
+        <input type="text" id="settR2Bucket" placeholder="my-bucket">
+      </div>
+      <div class="modal-field">
+        <label>R2 Public URL</label>
+        <input type="text" id="settR2PublicUrl" placeholder="https://pub-xxx.r2.dev">
+        <div class="field-hint">Public access URL for your R2 bucket</div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-header">&#129302; Agent Configuration</div>
+      <div class="modal-field">
+        <label>Default Model</label>
+        <select id="settModel">
+          <option value="claude-opus-4-6">claude-opus-4-6</option>
+          <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+        </select>
+        <div class="field-hint">The AI model used for code generation</div>
+      </div>
+      <div class="modal-field">
+        <label>Max Iterations</label>
+        <input type="number" id="settMaxIter" min="1" max="20" value="10">
+        <div class="field-hint">Maximum agent loop iterations per request (1-20)</div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="toggleSettingsModal()">Cancel</button>
+      <button class="btn-save" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Skills Modal -->
+<div class="modal-overlay" id="skillsModal">
+  <div class="modal-box" style="width:580px;">
+    <h3>&#128218; Skills</h3>
+
+    <div class="skills-tabs">
+      <div class="skills-tab active" data-tab="installed" onclick="switchSkillsTab('installed')">Installed</div>
+      <div class="skills-tab" data-tab="create" onclick="switchSkillsTab('create')">Create</div>
+      <div class="skills-tab" data-tab="marketplace" onclick="switchSkillsTab('marketplace')">Marketplace</div>
+    </div>
+
+    <!-- Installed Tab -->
+    <div class="skills-tab-panel active" id="skillsTabInstalled">
+      <input type="text" class="skill-search" id="skillSearchInput" placeholder="Search skills..." oninput="filterSkills()">
+      <div class="skill-list" id="skillList">
+        <div class="skill-empty"><div class="empty-icon">&#128218;</div>Loading skills...</div>
+      </div>
+    </div>
+
+    <!-- Create Tab -->
+    <div class="skills-tab-panel" id="skillsTabCreate">
+      <div class="modal-field">
+        <label>Skill Name</label>
+        <input type="text" id="skillName" placeholder="my-skill">
+        <div class="field-hint">Lowercase, hyphens only. This becomes the /command name.</div>
+      </div>
+      <div class="modal-field">
+        <label>Description</label>
+        <input type="text" id="skillDesc" placeholder="Triggers: react, frontend, component..." maxlength="120" oninput="updateSkillDescCount()">
+        <div class="char-count" id="skillDescCount">0 / 120</div>
+        <div class="field-hint">Describe when this skill should activate</div>
+      </div>
+      <div class="modal-field">
+        <label>Instructions (Markdown)</label>
+        <textarea id="skillContent" placeholder="You are a React expert. Build components using...&#10;&#10;Use $ARGUMENTS for user input"></textarea>
+        <div class="field-hint">Use $ARGUMENTS to reference user input after the slash command</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="clearSkillForm()">Clear</button>
+        <button class="btn-save" id="skillSaveBtn" onclick="saveSkill()">Create Skill</button>
+      </div>
+
+      <div class="skill-import-area">
+        <details>
+          <summary>&#128203; Import skill from raw SKILL.md</summary>
+          <div class="modal-field" style="margin-top:10px;">
+            <label>Paste SKILL.md Content</label>
+            <textarea id="skillImportRaw" placeholder="---&#10;name: my-skill&#10;description: Does something&#10;---&#10;&#10;Skill instructions here..."></textarea>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-save" onclick="importSkillRaw()">Import</button>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- Marketplace Tab -->
+    <div class="skills-tab-panel" id="skillsTabMarketplace">
+      <div class="marketplace-placeholder">
+        <div class="mp-icon">&#127968;</div>
+        <div class="mp-title">Skill Marketplace</div>
+        <div class="mp-desc">Community-created skills will be available here soon.<br>For now, create your own skills in the Create tab!</div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="border-top:1px solid var(--border);padding-top:14px;">
+      <button class="btn-cancel" onclick="toggleSkillsModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const API = window.location.origin || '';
@@ -216,10 +740,28 @@ let previewVisible = true;
 let viewMode = 'preview'; // 'preview' or 'code'
 let currentPreviewFile = null;
 let pendingAttachments = []; // {filename, content_type, data (base64), thumbUrl?}
+let _ghConnected = false;
+let _renderConnected = false;
+let _r2Connected = false;
 
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
 const sendBtn = document.getElementById('sendBtn');
+
+// ── Toast Notification System ──────────────────────────────────────────────
+
+function showToast(message, type = 'info', duration = 3500) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = { success: '&#10003;', error: '&#10007;', info: '&#8505;', warning: '&#9888;' };
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span class="toast-msg">${message}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('removing');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, duration);
+}
 
 // ── Input Handling ──────────────────────────────────────────────────────────
 
@@ -257,7 +799,7 @@ input.addEventListener('paste', e => {
 
 function handleFiles(fileList) {
   for (const file of fileList) {
-    if (file.size > 10 * 1024 * 1024) { alert(`File too large: ${file.name} (max 10MB)`); continue; }
+    if (file.size > 10 * 1024 * 1024) { showToast(`File too large: ${file.name} (max 10MB)`, 'error'); continue; }
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result.split(',')[1]; // strip data:...;base64, prefix
@@ -635,6 +1177,12 @@ async function sendMessage() {
             console.log('[Claw] Session ID set:', sessionId);
             break;
 
+          case 'skill':
+            if (event.name) {
+              addMsg('assistant', `<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(88,166,255,0.1);color:var(--accent);font-size:11px;font-weight:600;padding:4px 12px;border-radius:12px;border:1px solid rgba(88,166,255,0.2);">&#9889; Skill active: /${escapeHtml(event.name)}</span>`);
+            }
+            break;
+
           case 'design':
             if (event.status === 'running') {
               updateThinking('<span class="design-badge">&#127912; Design Agent</span> Crafting visual design...');
@@ -757,6 +1305,929 @@ async function sendMessage() {
   setStatus('Ready', false);
   input.focus();
 }
+
+// ── Deploy Menu ───────────────────────────────────────────────────────────
+
+function toggleDeployMenu() {
+  const menu = document.getElementById('deployMenu');
+  menu.classList.toggle('open');
+  // Update connection status dots
+  document.getElementById('deployGhDot').className = `deploy-status-dot ${_ghConnected ? 'connected' : 'disconnected'}`;
+  document.getElementById('deployRenderDot').className = `deploy-status-dot ${_renderConnected ? 'connected' : 'disconnected'}`;
+  // Update disabled states
+  const ghBtn = document.getElementById('deployGhBtn');
+  const renderBtn = document.getElementById('deployRenderBtn');
+  if (!_ghConnected) {
+    ghBtn.classList.add('disabled');
+    ghBtn.title = 'Configure GitHub token in Settings first';
+  } else {
+    ghBtn.classList.remove('disabled');
+    ghBtn.title = '';
+  }
+  if (!_renderConnected) {
+    renderBtn.classList.add('disabled');
+    renderBtn.title = 'Configure Render API key in Settings first';
+  } else {
+    renderBtn.classList.remove('disabled');
+    renderBtn.title = '';
+  }
+}
+document.addEventListener('click', e => {
+  const wrap = e.target.closest('.deploy-wrap');
+  if (!wrap) document.getElementById('deployMenu').classList.remove('open');
+});
+
+function downloadZip() {
+  if (!sessionId) { showToast('No session yet — build something first!', 'warning'); return; }
+  window.open(`${API}/agent/download/${sessionId}`, '_blank');
+  document.getElementById('deployMenu').classList.remove('open');
+}
+
+async function deployGitHub() {
+  document.getElementById('deployMenu').classList.remove('open');
+  if (!sessionId) { showToast('No session yet — build something first!', 'warning'); return; }
+  const repo = prompt('GitHub repo (owner/repo format):', '');
+  if (!repo || !repo.includes('/')) { showToast('Please enter in owner/repo format (e.g. myuser/my-app)', 'error'); return; }
+  const msg = prompt('Commit message:', 'Deploy from Claw Code');
+  setStatus('Pushing to GitHub...', true);
+  try {
+    const res = await fetch(`${API}/agent/deploy/github`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({session_id: sessionId, repo: repo, commit_message: msg || 'Deploy from Claw Code'}),
+    });
+    const data = await res.json();
+    if (data.status === 'success' && data.url) {
+      window._lastGitHubRepo = repo;
+      addMsg('assistant', `&#128025; Pushed ${data.files_pushed} files to GitHub: <a href="${data.url}" target="_blank" style="color:var(--accent)">${data.url}</a>`);
+      showToast(`Pushed ${data.files_pushed} files to GitHub`, 'success');
+    } else {
+      addMsg('assistant', `<span style="color:var(--red)">GitHub push failed: ${data.detail || data.message || 'Unknown error'}</span>`);
+      showToast('GitHub push failed', 'error');
+    }
+  } catch(e) {
+    addMsg('assistant', `<span style="color:var(--red)">GitHub push error: ${e.message}</span>`);
+    showToast('GitHub push error', 'error');
+  }
+  setStatus('Ready', false);
+}
+
+async function deployRender() {
+  document.getElementById('deployMenu').classList.remove('open');
+  if (!sessionId) { showToast('No session yet — build something first!', 'warning'); return; }
+  if (!window._lastGitHubRepo) {
+    showToast('Push to GitHub first! Render deploys from a GitHub repo.', 'warning');
+    return;
+  }
+  const name = prompt('Render service name:', window._lastGitHubRepo.split('/')[1] || '');
+  if (!name) return;
+  setStatus('Deploying to Render...', true);
+  try {
+    const res = await fetch(`${API}/agent/deploy/render`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({session_id: sessionId, service_name: name, repo: window._lastGitHubRepo}),
+    });
+    const data = await res.json();
+    if (data.status === 'created' || data.status === 'deploying') {
+      const url = data.url || data.dashboard_url;
+      addMsg('assistant', `&#9889; ${data.action === 'redeploy' ? 'Redeploying' : 'Created'} on Render: <a href="${url}" target="_blank" style="color:var(--accent)">${url}</a>`);
+      showToast('Deployed to Render successfully', 'success');
+    } else {
+      addMsg('assistant', `<span style="color:var(--red)">Render deploy failed: ${data.detail || data.message || 'Unknown error'}</span>`);
+      showToast('Render deploy failed', 'error');
+    }
+  } catch(e) {
+    addMsg('assistant', `<span style="color:var(--red)">Render deploy error: ${e.message}</span>`);
+    showToast('Render deploy error', 'error');
+  }
+  setStatus('Ready', false);
+}
+
+// ── Settings Modal ────────────────────────────────────────────────────────
+
+async function toggleSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  if (modal.classList.contains('open')) {
+    modal.classList.remove('open');
+  } else {
+    modal.classList.add('open');
+    try {
+      const res = await fetch(`${API}/settings`);
+      const s = await res.json();
+      _ghConnected = !!s.github_connected;
+      _renderConnected = !!s.render_connected;
+      document.getElementById('settGithub').value = s.github_connected ? s.github_token : '';
+      document.getElementById('settGithub').placeholder = s.github_connected ? s.github_token : 'ghp_xxxxxxxxxxxx';
+      document.getElementById('settRender').value = s.render_connected ? s.render_api_key : '';
+      document.getElementById('settRender').placeholder = s.render_connected ? s.render_api_key : 'rnd_xxxxxxxxxxxx';
+      document.getElementById('settModel').value = s.default_model || 'claude-opus-4-6';
+      document.getElementById('settMaxIter').value = s.max_iterations || 10;
+      // R2 fields
+      document.getElementById('settR2Account').value = s.r2_account_id || '';
+      document.getElementById('settR2AccessKey').value = s.r2_connected ? s.r2_access_key : '';
+      document.getElementById('settR2AccessKey').placeholder = s.r2_connected ? s.r2_access_key : 'access-key';
+      document.getElementById('settR2SecretKey').value = s.r2_connected ? s.r2_secret_key : '';
+      document.getElementById('settR2SecretKey').placeholder = s.r2_connected ? s.r2_secret_key : 'secret-key';
+      document.getElementById('settR2Bucket').value = s.r2_bucket_name || '';
+      document.getElementById('settR2PublicUrl').value = s.r2_public_url || '';
+      _r2Connected = !!s.r2_connected;
+      // Update connection dots
+      document.getElementById('ghConnDot').className = `conn-status ${_ghConnected ? 'on' : 'off'}`;
+      document.getElementById('renderConnDot').className = `conn-status ${_renderConnected ? 'on' : 'off'}`;
+      document.getElementById('r2ConnDot').className = `conn-status ${_r2Connected ? 'on' : 'off'}`;
+    } catch(e) { console.error('Failed to load settings:', e); }
+  }
+}
+
+async function saveSettings() {
+  const payload = {};
+  const gh = document.getElementById('settGithub').value.trim();
+  const rn = document.getElementById('settRender').value.trim();
+  if (gh && !gh.startsWith('****')) payload.github_token = gh;
+  if (rn && !rn.startsWith('****')) payload.render_api_key = rn;
+  payload.default_model = document.getElementById('settModel').value;
+  payload.max_iterations = parseInt(document.getElementById('settMaxIter').value) || 10;
+  // R2 fields
+  const r2acc = document.getElementById('settR2Account').value.trim();
+  const r2ak = document.getElementById('settR2AccessKey').value.trim();
+  const r2sk = document.getElementById('settR2SecretKey').value.trim();
+  const r2bk = document.getElementById('settR2Bucket').value.trim();
+  const r2url = document.getElementById('settR2PublicUrl').value.trim();
+  if (r2acc) payload.r2_account_id = r2acc;
+  if (r2ak && !r2ak.startsWith('****')) payload.r2_access_key = r2ak;
+  if (r2sk && !r2sk.startsWith('****')) payload.r2_secret_key = r2sk;
+  if (r2bk) payload.r2_bucket_name = r2bk;
+  if (r2url) payload.r2_public_url = r2url;
+  try {
+    await fetch(`${API}/settings`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    document.getElementById('settingsModal').classList.remove('open');
+    showToast('Settings saved', 'success');
+    setStatus('Settings saved', false);
+    // Refresh connection status
+    if (gh && !gh.startsWith('****')) _ghConnected = true;
+    if (rn && !rn.startsWith('****')) _renderConnected = true;
+  } catch(e) { showToast('Failed to save: ' + e.message, 'error'); }
+}
+
+function toggleReveal(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// ── Skills Modal ──────────────────────────────────────────────────────────
+
+let cachedSkills = [];
+
+function switchSkillsTab(tabName) {
+  document.querySelectorAll('.skills-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+  document.getElementById('skillsTabInstalled').classList.toggle('active', tabName === 'installed');
+  document.getElementById('skillsTabCreate').classList.toggle('active', tabName === 'create');
+  document.getElementById('skillsTabMarketplace').classList.toggle('active', tabName === 'marketplace');
+}
+
+async function toggleSkillsModal() {
+  const modal = document.getElementById('skillsModal');
+  if (modal.classList.contains('open')) {
+    modal.classList.remove('open');
+  } else {
+    modal.classList.add('open');
+    switchSkillsTab('installed');
+    await loadSkillsList();
+  }
+}
+
+function filterSkills() {
+  const query = document.getElementById('skillSearchInput').value.toLowerCase().trim();
+  const items = document.querySelectorAll('#skillList .skill-item');
+  let visibleCount = 0;
+  items.forEach(item => {
+    const name = (item.dataset.name || '').toLowerCase();
+    const desc = (item.dataset.desc || '').toLowerCase();
+    const match = !query || name.includes(query) || desc.includes(query);
+    item.style.display = match ? '' : 'none';
+    if (match) visibleCount++;
+  });
+  // Show/hide "no results"
+  let noRes = document.getElementById('skillNoResults');
+  if (visibleCount === 0 && query) {
+    if (!noRes) {
+      noRes = document.createElement('div');
+      noRes.id = 'skillNoResults';
+      noRes.className = 'skill-empty';
+      noRes.innerHTML = '<div class="empty-icon">&#128269;</div>No matching skills';
+      document.getElementById('skillList').appendChild(noRes);
+    }
+    noRes.style.display = '';
+  } else if (noRes) {
+    noRes.style.display = 'none';
+  }
+}
+
+async function loadSkillsList() {
+  const list = document.getElementById('skillList');
+  try {
+    const res = await fetch(`${API}/skills`);
+    const data = await res.json();
+    cachedSkills = data.skills || [];
+    if (cachedSkills.length === 0) {
+      list.innerHTML = '<div class="skill-empty"><div class="empty-icon">&#128218;</div>No skills yet. Create one in the Create tab!</div>';
+      return;
+    }
+    list.innerHTML = cachedSkills.map(s => `
+      <div class="skill-item" data-name="${escapeHtml(s.name)}" data-desc="${escapeHtml(s.description || '')}">
+        <div class="skill-info">
+          <div class="skill-name"><span class="slash-prefix">/</span>${escapeHtml(s.name)}</div>
+          <div class="skill-desc">${escapeHtml(s.description || 'No description')}</div>
+        </div>
+        <div class="skill-right">
+          <div class="skill-toggle on" onclick="this.classList.toggle('on')" title="Enable/Disable"></div>
+          <div class="skill-actions">
+            <button onclick="editSkill('${s.name}')">Edit</button>
+            <button class="del-btn" onclick="deleteSkill('${s.name}')">Delete</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="skill-empty" style="color:var(--red)"><div class="empty-icon">&#9888;</div>Failed to load skills</div>';
+  }
+}
+
+async function saveSkill() {
+  const name = document.getElementById('skillName').value.trim();
+  const desc = document.getElementById('skillDesc').value.trim();
+  const content = document.getElementById('skillContent').value;
+  if (!name || !content) { showToast('Name and content are required', 'warning'); return; }
+  const editingName = document.getElementById('skillSaveBtn').dataset.editing;
+  try {
+    if (editingName) {
+      await fetch(`${API}/skills/${editingName}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({description: desc, content: content}),
+      });
+      showToast(`Skill /${editingName} updated`, 'success');
+    } else {
+      await fetch(`${API}/skills`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name, description: desc, content}),
+      });
+      showToast(`Skill /${name} created`, 'success');
+    }
+    clearSkillForm();
+    switchSkillsTab('installed');
+    await loadSkillsList();
+  } catch(e) { showToast('Failed to save skill: ' + e.message, 'error'); }
+}
+
+async function editSkill(name) {
+  try {
+    const res = await fetch(`${API}/skills/${name}`);
+    const s = await res.json();
+    document.getElementById('skillName').value = s.name;
+    document.getElementById('skillName').disabled = true;
+    document.getElementById('skillDesc').value = s.description || '';
+    document.getElementById('skillContent').value = s.content || '';
+    document.getElementById('skillSaveBtn').textContent = 'Update Skill';
+    document.getElementById('skillSaveBtn').dataset.editing = name;
+    updateSkillDescCount();
+    switchSkillsTab('create');
+  } catch(e) { showToast('Failed to load skill: ' + e.message, 'error'); }
+}
+
+async function deleteSkill(name) {
+  if (!confirm(`Delete skill "/${name}"?`)) return;
+  try {
+    await fetch(`${API}/skills/${name}`, {method: 'DELETE'});
+    showToast(`Skill /${name} deleted`, 'info');
+    await loadSkillsList();
+  } catch(e) { showToast('Failed to delete: ' + e.message, 'error'); }
+}
+
+function clearSkillForm() {
+  document.getElementById('skillName').value = '';
+  document.getElementById('skillName').disabled = false;
+  document.getElementById('skillDesc').value = '';
+  document.getElementById('skillContent').value = '';
+  document.getElementById('skillSaveBtn').textContent = 'Create Skill';
+  delete document.getElementById('skillSaveBtn').dataset.editing;
+  updateSkillDescCount();
+}
+
+function updateSkillDescCount() {
+  const desc = document.getElementById('skillDesc');
+  const count = document.getElementById('skillDescCount');
+  if (desc && count) count.textContent = `${desc.value.length} / 120`;
+}
+
+function importSkillRaw() {
+  const raw = document.getElementById('skillImportRaw').value.trim();
+  if (!raw) { showToast('Paste SKILL.md content first', 'warning'); return; }
+  // Parse frontmatter
+  const fmMatch = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
+  if (fmMatch) {
+    const fm = fmMatch[1];
+    const body = fmMatch[2];
+    const nameMatch = fm.match(/name:\s*(.+)/);
+    const descMatch = fm.match(/description:\s*(.+)/);
+    if (nameMatch) document.getElementById('skillName').value = nameMatch[1].trim();
+    if (descMatch) document.getElementById('skillDesc').value = descMatch[1].trim();
+    document.getElementById('skillContent').value = body.trim();
+    updateSkillDescCount();
+    showToast('Skill imported from SKILL.md — review and save', 'info');
+  } else {
+    // No frontmatter, just put it all in content
+    document.getElementById('skillContent').value = raw;
+    showToast('No frontmatter found — pasted as instructions', 'warning');
+  }
+  document.getElementById('skillImportRaw').value = '';
+}
+
+// ── Slash Command Autocomplete ────────────────────────────────────────────
+
+let slashSelectedIdx = -1;
+
+input.addEventListener('input', async () => {
+  const val = input.value;
+  const ac = document.getElementById('slashAutocomplete');
+  if (val.startsWith('/') && val.indexOf(' ') === -1 && val.length > 1) {
+    const query = val.slice(1).toLowerCase();
+    // Use cached skills or fetch
+    if (cachedSkills.length === 0) {
+      try { const r = await fetch(`${API}/skills`); const d = await r.json(); cachedSkills = d.skills || []; } catch(e) {}
+    }
+    const matches = cachedSkills.filter(s => s.name.toLowerCase().includes(query));
+    const limited = matches.slice(0, 5);
+    if (limited.length > 0) {
+      slashSelectedIdx = -1;
+      ac.innerHTML = limited.map((s, i) => {
+        // Bold the matching portion
+        const nameHtml = highlightMatch(s.name, query);
+        const descText = escapeHtml(s.description || '').slice(0, 60);
+        return `<div class="slash-item" data-name="${s.name}" onclick="selectSlash('${s.name}')"><span class="slash-name">/${nameHtml}</span><span class="slash-desc">${descText}</span></div>`;
+      }).join('');
+      ac.classList.add('open');
+      return;
+    } else {
+      // Show "no matching skills" state
+      ac.innerHTML = '<div class="slash-empty">No matching skills</div>';
+      ac.classList.add('open');
+      return;
+    }
+  }
+  ac.classList.remove('open');
+});
+
+function highlightMatch(name, query) {
+  const idx = name.toLowerCase().indexOf(query);
+  if (idx === -1) return escapeHtml(name);
+  const before = escapeHtml(name.slice(0, idx));
+  const match = escapeHtml(name.slice(idx, idx + query.length));
+  const after = escapeHtml(name.slice(idx + query.length));
+  return `${before}<span class="match-bold">${match}</span>${after}`;
+}
+
+input.addEventListener('keydown', e => {
+  const ac = document.getElementById('slashAutocomplete');
+  if (!ac.classList.contains('open')) return;
+  const items = ac.querySelectorAll('.slash-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); slashSelectedIdx = Math.min(slashSelectedIdx + 1, items.length - 1); updateSlashSelection(items); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); slashSelectedIdx = Math.max(slashSelectedIdx - 1, 0); updateSlashSelection(items); }
+  else if (e.key === 'Tab' || (e.key === 'Enter' && slashSelectedIdx >= 0)) {
+    e.preventDefault();
+    if (slashSelectedIdx >= 0 && items[slashSelectedIdx]) {
+      selectSlash(items[slashSelectedIdx].dataset.name);
+    }
+  }
+  else if (e.key === 'Escape') { ac.classList.remove('open'); }
+});
+
+function updateSlashSelection(items) {
+  items.forEach((el, i) => el.classList.toggle('selected', i === slashSelectedIdx));
+}
+
+function selectSlash(name) {
+  input.value = '/' + name + ' ';
+  document.getElementById('slashAutocomplete').classList.remove('open');
+  input.focus();
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ── Load connection status on init ───────────────────────────────────────
+(async function initConnectionStatus() {
+  try {
+    const res = await fetch(`${API}/settings`);
+    const s = await res.json();
+    _ghConnected = !!s.github_connected;
+    _renderConnected = !!s.render_connected;
+    _r2Connected = !!s.r2_connected;
+  } catch(e) {}
+})();
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── CONTENT FACTORY ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+
+let cfPersonaId = '';
+let cfSelectedTypes = new Set();
+let cfLastResult = null;
+let cfActiveResultType = '';
+let cfPromptSlot = null; // {persona_id, content_type}
+let cfPromptRecord = null;
+let cfEditingDraftId = null;
+let cfLibraryData = null;
+let cfDetailContentId = null;
+let cfDetailContent = null;
+let cfDetailActiveType = '';
+let cfInitDone = false;
+
+// Cached data from API
+let cfPersonas = {};
+let cfContentTypes = [];
+let cfLegalDomains = [];
+let cfCustomPromptSlots = new Set(); // "persona_id/content_type" keys that have custom prompts
+
+// ── App View Switching ────────────────────────────────────────────────────
+
+function switchAppView(view) {
+  document.querySelectorAll('.app-nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.app-view').forEach(v => { v.classList.remove('active'); v.style.display = 'none'; });
+  if (view === 'factory') {
+    document.querySelector('.app-nav-tab.cf-tab').classList.add('active');
+    const el = document.getElementById('viewFactory');
+    el.classList.add('active'); el.style.display = 'flex';
+    if (!cfInitDone) cfInit();
+  } else {
+    document.querySelector('.app-nav-tab:not(.cf-tab)').classList.add('active');
+    const el = document.getElementById('viewAgent');
+    el.classList.add('active'); el.style.display = 'flex';
+  }
+}
+
+function switchCfView(view) {
+  document.querySelectorAll('.cf-subnav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.cf-view').forEach(v => v.classList.remove('active'));
+  const tabMap = { create: 0, prompts: 1, library: 2 };
+  document.querySelectorAll('.cf-subnav-tab')[tabMap[view]]?.classList.add('active');
+  const viewEl = document.getElementById(view === 'create' ? 'cfViewCreate' : view === 'prompts' ? 'cfViewPrompts' : 'cfViewLibrary');
+  if (viewEl) viewEl.classList.add('active');
+  if (view === 'prompts') cfInitPromptLab();
+  if (view === 'library') cfLoadLibrary();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+async function cfInit() {
+  cfInitDone = true;
+  try {
+    const [pRes, tRes, dRes] = await Promise.all([
+      fetch(`${API}/content/personas`).then(r => r.json()),
+      fetch(`${API}/content/types`).then(r => r.json()),
+      fetch(`${API}/content/domains`).then(r => r.json()),
+    ]);
+    cfPersonas = pRes;
+    cfContentTypes = tRes.types || [];
+    cfLegalDomains = dRes.domains || [];
+  } catch(e) {
+    showToast('Failed to load Content Factory data', 'error');
+    return;
+  }
+
+  // Render persona cards
+  const row = document.getElementById('cfPersonaRow');
+  row.innerHTML = Object.entries(cfPersonas).map(([id, p]) => `
+    <div class="cf-persona-card" data-id="${id}" onclick="cfSelectPersona('${id}')">
+      <div class="p-name">${escapeHtml(p.name)}</div>
+      <div class="p-title">${escapeHtml(p.title)}</div>
+      <div class="p-exp">${escapeHtml(p.experience)}</div>
+    </div>
+  `).join('');
+
+  // Render domain dropdown
+  const domSel = document.getElementById('cfDomain');
+  domSel.innerHTML = cfLegalDomains.map(d => `<option value="${d}">${d.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`).join('');
+
+  // Render content type chips
+  const chips = document.getElementById('cfTypeChips');
+  chips.innerHTML = cfContentTypes.map(t => `<div class="cf-type-chip" data-type="${t}" onclick="cfToggleType('${t}')">${t.replace(/_/g,' ')}</div>`).join('');
+
+  // Show skill badges for default (all types)
+  cfUpdateSkillBadges();
+
+  // Populate library filter dropdowns
+  const libP = document.getElementById('cfLibPersona');
+  Object.entries(cfPersonas).forEach(([id, p]) => {
+    libP.innerHTML += `<option value="${id}">${escapeHtml(p.name)}</option>`;
+  });
+  const libD = document.getElementById('cfLibDomain');
+  cfLegalDomains.forEach(d => {
+    libD.innerHTML += `<option value="${d}">${d.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`;
+  });
+}
+
+// ── Create View ───────────────────────────────────────────────────────────
+
+function cfSelectPersona(id) {
+  cfPersonaId = id;
+  document.querySelectorAll('.cf-persona-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+}
+
+function cfToggleType(type) {
+  if (cfSelectedTypes.has(type)) cfSelectedTypes.delete(type);
+  else cfSelectedTypes.add(type);
+  document.querySelectorAll('.cf-type-chip').forEach(c => c.classList.toggle('selected', cfSelectedTypes.has(c.dataset.type)));
+  cfUpdateSkillBadges();
+}
+
+async function cfUpdateSkillBadges() {
+  const badgeContainer = document.getElementById('cfSkillBadges');
+  const badgeList = document.getElementById('cfSkillBadgeList');
+  const types = cfSelectedTypes.size > 0 ? [...cfSelectedTypes] : cfContentTypes;
+  // Collect unique skills across selected types
+  const skillSet = new Set();
+  try {
+    for (const ct of types) {
+      const res = await fetch(`${API}/content/skills/${ct}`);
+      const data = await res.json();
+      (data.skills || []).forEach(s => skillSet.add(s));
+    }
+  } catch(e) {}
+  if (skillSet.size > 0) {
+    badgeContainer.style.display = '';
+    badgeList.innerHTML = [...skillSet].map(s =>
+      `<span style="background:rgba(244,129,32,0.1);border:1px solid var(--cf-orange);color:var(--cf-orange);padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;">&#9889; ${escapeHtml(s)}</span>`
+    ).join('');
+  } else {
+    badgeContainer.style.display = 'none';
+  }
+}
+
+async function cfGenerate() {
+  if (!cfPersonaId) { showToast('Select a persona first', 'warning'); return; }
+  const raw = document.getElementById('cfRawInput').value.trim();
+  if (!raw) { showToast('Enter raw input / legal topic', 'warning'); return; }
+
+  const btn = document.getElementById('cfGenerateBtn');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  setStatus('Generating content...', true);
+
+  try {
+    const body = {
+      persona_id: cfPersonaId,
+      raw_input: raw,
+      legal_domain: document.getElementById('cfDomain').value,
+    };
+    if (cfSelectedTypes.size > 0) body.content_types = [...cfSelectedTypes];
+
+    const res = await fetch(`${API}/content/generate`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.detail) throw new Error(data.detail);
+
+    cfLastResult = data;
+    // Show results
+    const results = document.getElementById('cfResults');
+    results.classList.add('visible');
+
+    // Build tabs
+    const tabs = document.getElementById('cfResultTabs');
+    tabs.innerHTML = (data.pieces || []).map((p, i) => {
+      const isError = p.title?.startsWith('Error:');
+      return `<div class="cf-result-tab ${i===0?'active':''} ${isError?'error':''}" data-type="${p.content_type}" onclick="cfShowResultTab('${p.content_type}')">${p.content_type.replace(/_/g,' ')}</div>`;
+    }).join('');
+
+    if (data.pieces && data.pieces.length > 0) {
+      cfActiveResultType = data.pieces[0].content_type;
+      cfShowResultTab(cfActiveResultType);
+    }
+
+    showToast(`Generated ${data.pieces?.length || 0} content pieces`, 'success');
+  } catch(e) {
+    showToast('Generation failed: ' + e.message, 'error');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '&#9889; Generate All Content';
+  setStatus('Ready', false);
+}
+
+function cfShowResultTab(contentType) {
+  cfActiveResultType = contentType;
+  document.querySelectorAll('#cfResultTabs .cf-result-tab').forEach(t => t.classList.toggle('active', t.dataset.type === contentType));
+  const piece = cfLastResult?.pieces?.find(p => p.content_type === contentType);
+  document.getElementById('cfResultBody').textContent = piece ? piece.body : 'No content';
+}
+
+function cfCopyResult() {
+  const piece = cfLastResult?.pieces?.find(p => p.content_type === cfActiveResultType);
+  if (!piece) return;
+  navigator.clipboard.writeText(piece.body).then(() => showToast('Copied to clipboard', 'success'));
+}
+
+function cfDownloadResult() {
+  const piece = cfLastResult?.pieces?.find(p => p.content_type === cfActiveResultType);
+  if (!piece) return;
+  const blob = new Blob([piece.body], {type: 'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${cfActiveResultType}.md`;
+  a.click();
+}
+
+async function cfUploadToR2() {
+  if (!cfLastResult?.content_id) { showToast('No content to upload', 'warning'); return; }
+  try {
+    const res = await fetch(`${API}/content/library/${cfLastResult.content_id}/upload`, {method: 'POST'});
+    const data = await res.json();
+    if (data.status === 'uploaded') {
+      showToast('Uploaded to R2 successfully', 'success');
+    } else {
+      showToast('Upload failed: ' + (data.detail || 'Unknown error'), 'error');
+    }
+  } catch(e) { showToast('Upload error: ' + e.message, 'error'); }
+}
+
+// ── Prompt Lab ────────────────────────────────────────────────────────────
+
+async function cfInitPromptLab() {
+  const sidebar = document.getElementById('cfPromptSidebar');
+  // Fetch existing custom prompts to show dots
+  try {
+    const res = await fetch(`${API}/content/prompts`);
+    const data = await res.json();
+    cfCustomPromptSlots.clear();
+    (data.prompts || []).forEach(r => {
+      if (r.drafts && r.drafts.length > 0) cfCustomPromptSlots.add(`${r.persona_id}/${r.content_type}`);
+    });
+  } catch(e) {}
+
+  let html = '';
+  Object.entries(cfPersonas).forEach(([pid, p]) => {
+    html += `<div class="ps-group"><div class="ps-group-title">${escapeHtml(p.name)}</div>`;
+    cfContentTypes.forEach(ct => {
+      const key = `${pid}/${ct}`;
+      const hasCustom = cfCustomPromptSlots.has(key);
+      const isActive = cfPromptSlot && cfPromptSlot.persona_id === pid && cfPromptSlot.content_type === ct;
+      html += `<div class="ps-slot ${hasCustom?'has-custom':''} ${isActive?'active':''}" onclick="cfSelectPromptSlot('${pid}','${ct}')"><span class="ps-dot"></span>${ct.replace(/_/g,' ')}</div>`;
+    });
+    html += '</div>';
+  });
+  sidebar.innerHTML = html;
+}
+
+async function cfSelectPromptSlot(personaId, contentType) {
+  cfPromptSlot = {persona_id: personaId, content_type: contentType};
+  cfEditingDraftId = null;
+
+  // Update sidebar active state
+  document.querySelectorAll('.cf-prompt-sidebar .ps-slot').forEach(s => s.classList.remove('active'));
+  const slots = document.querySelectorAll('.cf-prompt-sidebar .ps-slot');
+  const idx = Object.keys(cfPersonas).indexOf(personaId) * cfContentTypes.length + cfContentTypes.indexOf(contentType);
+  if (slots[idx]) slots[idx].classList.add('active');
+
+  document.getElementById('cfPeHeader').textContent = `${cfPersonas[personaId]?.name} — ${contentType.replace(/_/g,' ')}`;
+  document.getElementById('cfPeTextarea').style.display = '';
+  document.getElementById('cfPeActions').style.display = '';
+
+  // Load prompt record
+  try {
+    const res = await fetch(`${API}/content/prompts/${personaId}/${contentType}`);
+    cfPromptRecord = await res.json();
+  } catch(e) {
+    cfPromptRecord = {persona_id: personaId, content_type: contentType, drafts: [], active_draft_id: null};
+  }
+
+  // Render drafts
+  cfRenderDrafts();
+
+  // Load first draft or empty
+  if (cfPromptRecord.drafts && cfPromptRecord.drafts.length > 0) {
+    cfLoadDraft(cfPromptRecord.drafts[0].draft_id);
+  } else {
+    cfEditingDraftId = null;
+    document.getElementById('cfPeTextarea').value = '';
+    document.getElementById('cfTestOutput').classList.remove('visible');
+  }
+}
+
+function cfRenderDrafts() {
+  const container = document.getElementById('cfPeDrafts');
+  if (!cfPromptRecord || !cfPromptRecord.drafts || cfPromptRecord.drafts.length === 0) {
+    container.innerHTML = '<span style="font-size:10px;color:var(--text2);">No drafts yet — write a prompt and save</span>';
+    return;
+  }
+  container.innerHTML = cfPromptRecord.drafts.map(d => {
+    const isEditing = d.draft_id === cfEditingDraftId;
+    const isActive = d.draft_id === cfPromptRecord.active_draft_id;
+    return `<div class="pe-draft-chip ${isEditing?'active':''} ${isActive?'is-active-draft':''}" onclick="cfLoadDraft('${d.draft_id}')">${d.draft_id.slice(0,6)}${isActive?' &#10003;':''}</div>`;
+  }).join('');
+}
+
+function cfLoadDraft(draftId) {
+  cfEditingDraftId = draftId;
+  const draft = cfPromptRecord?.drafts?.find(d => d.draft_id === draftId);
+  document.getElementById('cfPeTextarea').value = draft ? draft.prompt_text : '';
+  if (draft?.test_output) {
+    document.getElementById('cfTestOutput').textContent = draft.test_output;
+    document.getElementById('cfTestOutput').classList.add('visible');
+  } else {
+    document.getElementById('cfTestOutput').classList.remove('visible');
+  }
+  cfRenderDrafts();
+}
+
+async function cfSaveDraft() {
+  if (!cfPromptSlot) return;
+  const text = document.getElementById('cfPeTextarea').value.trim();
+  if (!text) { showToast('Prompt text is empty', 'warning'); return; }
+
+  try {
+    const res = await fetch(`${API}/content/prompts/${cfPromptSlot.persona_id}/${cfPromptSlot.content_type}/drafts`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({persona_id: cfPromptSlot.persona_id, content_type: cfPromptSlot.content_type, prompt_text: text}),
+    });
+    const data = await res.json();
+    showToast('Draft saved', 'success');
+    // Refresh
+    await cfSelectPromptSlot(cfPromptSlot.persona_id, cfPromptSlot.content_type);
+    if (data.draft?.draft_id) cfLoadDraft(data.draft.draft_id);
+  } catch(e) { showToast('Failed to save draft: ' + e.message, 'error'); }
+}
+
+async function cfSetActive() {
+  if (!cfPromptSlot || !cfEditingDraftId) { showToast('Select a draft first', 'warning'); return; }
+  try {
+    await fetch(`${API}/content/prompts/${cfPromptSlot.persona_id}/${cfPromptSlot.content_type}/drafts/${cfEditingDraftId}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({is_active: true}),
+    });
+    showToast('Draft set as active', 'success');
+    await cfSelectPromptSlot(cfPromptSlot.persona_id, cfPromptSlot.content_type);
+    cfLoadDraft(cfEditingDraftId);
+  } catch(e) { showToast('Failed: ' + e.message, 'error'); }
+}
+
+async function cfTestPrompt() {
+  if (!cfPromptSlot) return;
+  const text = document.getElementById('cfPeTextarea').value.trim();
+  if (!text) { showToast('Write a prompt first', 'warning'); return; }
+  const sample = prompt('Enter sample legal input to test with:', 'Section 498A IPC - Cruelty by husband');
+  if (!sample) return;
+
+  const output = document.getElementById('cfTestOutput');
+  output.textContent = 'Testing...';
+  output.classList.add('visible');
+
+  try {
+    const res = await fetch(`${API}/content/prompts/test`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        persona_id: cfPromptSlot.persona_id,
+        content_type: cfPromptSlot.content_type,
+        draft_id: cfEditingDraftId || null,
+        prompt_text: text,
+        sample_input: sample,
+      }),
+    });
+    const data = await res.json();
+    if (data.detail) throw new Error(data.detail);
+    output.textContent = data.output || 'No output';
+    showToast('Test complete', 'success');
+  } catch(e) {
+    output.textContent = 'Error: ' + e.message;
+    showToast('Test failed: ' + e.message, 'error');
+  }
+}
+
+async function cfDeleteDraft() {
+  if (!cfPromptSlot || !cfEditingDraftId) { showToast('Select a draft first', 'warning'); return; }
+  if (!confirm('Delete this draft?')) return;
+  try {
+    await fetch(`${API}/content/prompts/${cfPromptSlot.persona_id}/${cfPromptSlot.content_type}/drafts/${cfEditingDraftId}`, {method: 'DELETE'});
+    showToast('Draft deleted', 'info');
+    cfEditingDraftId = null;
+    await cfSelectPromptSlot(cfPromptSlot.persona_id, cfPromptSlot.content_type);
+  } catch(e) { showToast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Library ───────────────────────────────────────────────────────────────
+
+async function cfLoadLibrary() {
+  const persona = document.getElementById('cfLibPersona').value;
+  const domain = document.getElementById('cfLibDomain').value;
+  const search = document.getElementById('cfLibSearch').value.trim();
+
+  let url = `${API}/content/library?limit=50`;
+  if (persona) url += `&persona_id=${persona}`;
+  if (domain) url += `&legal_domain=${domain}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+
+  try {
+    const res = await fetch(url);
+    cfLibraryData = await res.json();
+    const grid = document.getElementById('cfLibGrid');
+
+    if (!cfLibraryData.items || cfLibraryData.items.length === 0) {
+      grid.innerHTML = '<div class="cf-lib-empty">No content found. Create some in the Create tab!</div>';
+      return;
+    }
+
+    grid.innerHTML = cfLibraryData.items.map(item => `
+      <div class="cf-lib-card" onclick="cfViewLibraryItem('${item.content_id}')">
+        <div class="lc-persona">${escapeHtml(cfPersonas[item.persona_id]?.name || item.persona_id)}</div>
+        <div class="lc-topic">${escapeHtml(item.topic)}</div>
+        <div class="lc-domain">${item.legal_domain.replace(/_/g,' ')}</div>
+        <div class="lc-date">${new Date(item.created_at).toLocaleDateString()}</div>
+        <div class="lc-types">${(item.content_types||[]).map(()=>'<span class="lc-type-dot"></span>').join('')}</div>
+        ${item.public_url ? '<div class="lc-r2">&#10003; On R2</div>' : ''}
+      </div>
+    `).join('');
+  } catch(e) {
+    showToast('Failed to load library: ' + e.message, 'error');
+  }
+}
+
+async function cfViewLibraryItem(contentId) {
+  cfDetailContentId = contentId;
+  try {
+    const res = await fetch(`${API}/content/library/${contentId}/content`);
+    cfDetailContent = await res.json();
+    if (cfDetailContent.detail) throw new Error(cfDetailContent.detail);
+
+    document.getElementById('cfDetailTitle').textContent = cfDetailContent.topic || 'Content';
+    document.getElementById('cfDetailMeta').innerHTML = `
+      <b>${escapeHtml(cfPersonas[cfDetailContent.persona_id]?.name || cfDetailContent.persona_id)}</b> &middot;
+      ${cfDetailContent.legal_domain.replace(/_/g,' ')} &middot;
+      ${new Date(cfDetailContent.created_at).toLocaleDateString()} &middot;
+      Model: ${cfDetailContent.model_used}
+    `;
+
+    // Tabs
+    const tabs = document.getElementById('cfDetailTabs');
+    tabs.innerHTML = (cfDetailContent.pieces || []).map((p, i) =>
+      `<div class="cf-result-tab ${i===0?'active':''}" data-type="${p.content_type}" onclick="cfDetailShowTab('${p.content_type}')">${p.content_type.replace(/_/g,' ')}</div>`
+    ).join('');
+
+    if (cfDetailContent.pieces && cfDetailContent.pieces.length > 0) {
+      cfDetailActiveType = cfDetailContent.pieces[0].content_type;
+      cfDetailShowTab(cfDetailActiveType);
+    }
+
+    document.getElementById('cfDetailOverlay').classList.add('open');
+  } catch(e) {
+    showToast('Failed to load content: ' + e.message, 'error');
+  }
+}
+
+function cfDetailShowTab(contentType) {
+  cfDetailActiveType = contentType;
+  document.querySelectorAll('#cfDetailTabs .cf-result-tab').forEach(t => t.classList.toggle('active', t.dataset.type === contentType));
+  const piece = cfDetailContent?.pieces?.find(p => p.content_type === contentType);
+  document.getElementById('cfDetailBody').textContent = piece ? piece.body : 'No content';
+}
+
+function cfDetailCopy() {
+  const piece = cfDetailContent?.pieces?.find(p => p.content_type === cfDetailActiveType);
+  if (!piece) return;
+  navigator.clipboard.writeText(piece.body).then(() => showToast('Copied', 'success'));
+}
+
+async function cfDetailUpload() {
+  if (!cfDetailContentId) return;
+  try {
+    const res = await fetch(`${API}/content/library/${cfDetailContentId}/upload`, {method: 'POST'});
+    const data = await res.json();
+    if (data.status === 'uploaded') showToast('Uploaded to R2', 'success');
+    else showToast('Upload failed: ' + (data.detail || ''), 'error');
+  } catch(e) { showToast('Upload error: ' + e.message, 'error'); }
+}
+
+async function cfDetailDelete() {
+  if (!cfDetailContentId) return;
+  if (!confirm('Delete this content permanently?')) return;
+  try {
+    await fetch(`${API}/content/library/${cfDetailContentId}`, {method: 'DELETE'});
+    showToast('Content deleted', 'info');
+    document.getElementById('cfDetailOverlay').classList.remove('open');
+    cfLoadLibrary();
+  } catch(e) { showToast('Delete failed: ' + e.message, 'error'); }
+}
+
+// Close detail overlay on click outside
+document.getElementById('cfDetailOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('cfDetailOverlay')) {
+    document.getElementById('cfDetailOverlay').classList.remove('open');
+  }
+});
 </script>
 </body>
 </html>

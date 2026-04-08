@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -34,6 +36,14 @@ from agent.loop import (
     delete_session as delete_agent_session,
 )
 from agent.tools import WORKSPACE_ROOT, read_file as agent_read_file, list_directory as agent_list_dir
+from settings import Settings, SettingsUpdate, load_settings, save_settings, mask_token
+from agent.skills import (
+    list_skills as skill_list_all,
+    get_skill as skill_get,
+    create_skill as skill_create,
+    update_skill as skill_update,
+    delete_skill as skill_delete,
+)
 
 app = FastAPI(
     title="Claw Code",
@@ -542,6 +552,432 @@ def agent_preview_files(session_id: str):
                 html_files.append(rel)
 
     return {"html_files": html_files, "all_files": all_files}
+
+
+# ── Skills ──────────────────────────────────────────────────────────────────
+
+
+class SkillCreate(BaseModel):
+    name: str
+    description: str = ""
+    content: str = ""
+    allowed_tools: Optional[List[str]] = None
+    disable_model_invocation: bool = False
+
+
+class SkillUpdateReq(BaseModel):
+    description: Optional[str] = None
+    content: Optional[str] = None
+    allowed_tools: Optional[List[str]] = None
+    disable_model_invocation: Optional[bool] = None
+
+
+@app.get("/skills")
+def api_list_skills():
+    """List all available skills."""
+    skills = skill_list_all()
+    return {
+        "skills": [
+            {
+                "name": s.name,
+                "description": s.description,
+                "allowed_tools": s.allowed_tools,
+                "disable_model_invocation": s.disable_model_invocation,
+            }
+            for s in skills
+        ],
+        "count": len(skills),
+    }
+
+
+@app.get("/skills/{name}")
+def api_get_skill(name: str):
+    """Get a skill by name (includes content)."""
+    s = skill_get(name)
+    if not s:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    return {
+        "name": s.name,
+        "description": s.description,
+        "content": s.content,
+        "allowed_tools": s.allowed_tools,
+        "disable_model_invocation": s.disable_model_invocation,
+    }
+
+
+@app.post("/skills")
+def api_create_skill(req: SkillCreate):
+    """Create a new skill."""
+    try:
+        s = skill_create(
+            name=req.name,
+            description=req.description,
+            content=req.content,
+            allowed_tools=req.allowed_tools,
+            disable_model_invocation=req.disable_model_invocation,
+        )
+        return {"name": s.name, "status": "created"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/skills/{name}")
+def api_update_skill(name: str, req: SkillUpdateReq):
+    """Update an existing skill."""
+    s = skill_update(
+        name=name,
+        description=req.description,
+        content=req.content,
+        allowed_tools=req.allowed_tools,
+        disable_model_invocation=req.disable_model_invocation,
+    )
+    if not s:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    return {"name": s.name, "status": "updated"}
+
+
+@app.delete("/skills/{name}")
+def api_delete_skill(name: str):
+    """Delete a skill."""
+    deleted = skill_delete(name)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    return {"name": name, "status": "deleted"}
+
+
+# ── Settings ────────────────────────────────────────────────────────────────
+
+
+@app.get("/settings")
+def get_settings():
+    """Get current settings (tokens masked)."""
+    s = load_settings()
+    return {
+        "github_token": mask_token(s.github_token),
+        "render_api_key": mask_token(s.render_api_key),
+        "default_model": s.default_model,
+        "fallback_model": s.fallback_model,
+        "max_iterations": s.max_iterations,
+        "skills_directory": s.skills_directory,
+        "github_connected": bool(s.github_token),
+        "render_connected": bool(s.render_api_key),
+        "r2_account_id": s.r2_account_id or "",
+        "r2_access_key": mask_token(s.r2_access_key),
+        "r2_secret_key": mask_token(s.r2_secret_key),
+        "r2_bucket_name": s.r2_bucket_name or "",
+        "r2_public_url": s.r2_public_url or "",
+        "r2_connected": bool(s.r2_account_id and s.r2_access_key and s.r2_secret_key),
+    }
+
+
+@app.put("/settings")
+def update_settings(req: SettingsUpdate):
+    """Update settings (merge with existing)."""
+    current = load_settings()
+    updates = req.model_dump(exclude_none=True)
+    merged = current.model_dump()
+    merged.update(updates)
+    new_settings = Settings(**merged)
+    save_settings(new_settings)
+    return {"status": "saved"}
+
+
+# ── Download ZIP ────────────────────────────────────────────────────────────
+
+
+SKIP_DIRS = {"node_modules", ".git", "__pycache__", ".venv", "venv"}
+
+
+@app.get("/agent/download/{session_id}")
+def download_workspace(session_id: str):
+    """Download all workspace files as a ZIP archive."""
+    session = get_agent_session_data(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    workspace = Path(session.workspace)
+    if not workspace.exists():
+        raise HTTPException(status_code=404, detail="Workspace empty")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for file_path in sorted(workspace.rglob("*")):
+            if file_path.is_file():
+                # Skip large/irrelevant directories
+                parts = file_path.relative_to(workspace).parts
+                if any(p in SKIP_DIRS for p in parts):
+                    continue
+                rel = str(file_path.relative_to(workspace))
+                zf.write(file_path, rel)
+
+    buf.seek(0)
+    filename = f"claw-code-{session_id[:8]}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ── Content Factory ────────────────────────────────────────────────────────
+
+from content.models import (
+    PERSONAS,
+    CONTENT_TYPES,
+    LEGAL_DOMAINS,
+    ContentGenerateRequest,
+    PromptCreateRequest,
+    PromptUpdateRequest,
+    PromptTestRequest,
+)
+
+
+@app.get("/content/personas")
+def content_personas():
+    return PERSONAS
+
+
+@app.get("/content/types")
+def content_types():
+    return {"types": CONTENT_TYPES}
+
+
+@app.get("/content/domains")
+def content_domains():
+    return {"domains": LEGAL_DOMAINS}
+
+
+@app.post("/content/generate")
+def content_generate(req: ContentGenerateRequest):
+    """Generate content for all (or selected) content types and save to library."""
+    from content.generator import generate_all
+    from content.library import add_to_library
+
+    try:
+        result = generate_all(
+            persona_id=req.persona_id,
+            raw_input=req.raw_input,
+            legal_domain=req.legal_domain,
+            content_types=req.content_types,
+            model=req.model,
+        )
+        item = add_to_library(result)
+        return {
+            "content_id": result.content_id,
+            "persona_id": result.persona_id,
+            "legal_domain": result.legal_domain,
+            "topic": result.topic,
+            "created_at": result.created_at,
+            "model_used": result.model_used,
+            "pieces": [p.model_dump() for p in result.pieces],
+            "library_item": item.model_dump(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Content Prompts ────────────────────────────────────────────────────────
+
+
+@app.get("/content/prompts")
+def content_list_prompts(persona_id: Optional[str] = Query(None)):
+    from content.prompts import list_prompts
+    records = list_prompts(persona_id)
+    return {"prompts": [r.model_dump() for r in records], "count": len(records)}
+
+
+@app.get("/content/prompts/{persona_id}/{content_type}")
+def content_get_prompt(persona_id: str, content_type: str):
+    from content.prompts import get_prompt
+    record = get_prompt(persona_id, content_type)
+    if not record:
+        return {"persona_id": persona_id, "content_type": content_type, "drafts": [], "active_draft_id": None}
+    return record.model_dump()
+
+
+@app.post("/content/prompts/{persona_id}/{content_type}/drafts")
+def content_create_draft(persona_id: str, content_type: str, req: PromptCreateRequest):
+    from content.prompts import create_prompt_draft
+    draft = create_prompt_draft(persona_id, content_type, req.prompt_text)
+    return {"draft": draft.model_dump(), "status": "created"}
+
+
+@app.put("/content/prompts/{persona_id}/{content_type}/drafts/{draft_id}")
+def content_update_draft(persona_id: str, content_type: str, draft_id: str, req: PromptUpdateRequest):
+    from content.prompts import update_prompt_draft
+    draft = update_prompt_draft(persona_id, content_type, draft_id, req.prompt_text, req.is_active)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return {"draft": draft.model_dump(), "status": "updated"}
+
+
+@app.delete("/content/prompts/{persona_id}/{content_type}/drafts/{draft_id}")
+def content_delete_draft(persona_id: str, content_type: str, draft_id: str):
+    from content.prompts import delete_prompt_draft
+    deleted = delete_prompt_draft(persona_id, content_type, draft_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return {"status": "deleted"}
+
+
+@app.post("/content/prompts/test")
+def content_test_prompt(req: PromptTestRequest):
+    from content.generator import test_prompt
+    try:
+        result = test_prompt(
+            persona_id=req.persona_id,
+            content_type=req.content_type,
+            prompt_text=req.prompt_text or "",
+            sample_input=req.sample_input,
+            model=req.model,
+        )
+        # If draft_id provided, store test output
+        if req.draft_id:
+            from content.prompts import set_test_output
+            set_test_output(req.persona_id, req.content_type, req.draft_id, result.output)
+        return result.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Content Library ────────────────────────────────────────────────────────
+
+
+@app.get("/content/library")
+def content_list_library(
+    persona_id: Optional[str] = Query(None),
+    legal_domain: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+):
+    from content.library import list_library
+    result = list_library(persona_id, legal_domain, search, offset, limit)
+    return result.model_dump()
+
+
+@app.get("/content/library/{content_id}")
+def content_get_library_item(content_id: str):
+    from content.library import get_library_item
+    item = get_library_item(content_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Content not found")
+    return item.model_dump()
+
+
+@app.get("/content/library/{content_id}/content")
+def content_get_library_content(content_id: str):
+    from content.library import get_library_content
+    content = get_library_content(content_id)
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    return content.model_dump()
+
+
+@app.delete("/content/library/{content_id}")
+def content_delete_library_item(content_id: str):
+    from content.library import delete_from_library
+    deleted = delete_from_library(content_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Content not found")
+    return {"status": "deleted"}
+
+
+@app.post("/content/library/{content_id}/upload")
+def content_upload_to_r2(content_id: str):
+    from content.library import upload_to_r2
+    try:
+        public_url = upload_to_r2(content_id)
+        return {"status": "uploaded", "public_url": public_url, "content_id": content_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/content/skills")
+def content_skills():
+    """List all content skills and their mappings."""
+    from content.skill_injector import CONTENT_SKILL_MAP, UNIVERSAL_SKILLS, list_applied_skills
+    from agent.skills import list_skills as skill_list_all
+    all_skills = skill_list_all()
+    return {
+        "skills": [
+            {"name": s.name, "description": s.description}
+            for s in all_skills
+        ],
+        "mapping": CONTENT_SKILL_MAP,
+        "universal": UNIVERSAL_SKILLS,
+    }
+
+
+@app.get("/content/skills/{content_type}")
+def content_skills_for_type(content_type: str):
+    """Get skills that auto-apply for a specific content type."""
+    from content.skill_injector import list_applied_skills
+    return {"content_type": content_type, "skills": list_applied_skills(content_type)}
+
+
+@app.get("/content/r2/status")
+def content_r2_status():
+    from content.r2 import check_connection
+    return check_connection()
+
+
+# ── Deploy: GitHub Push ────────────────────────────────────────────────────
+
+
+class GitHubPushRequest(BaseModel):
+    session_id: str
+    repo: str  # "owner/repo" format
+    branch: str = "main"
+    commit_message: str = "Deploy from Claw Code"
+
+
+@app.post("/agent/deploy/github")
+def deploy_github(req: GitHubPushRequest):
+    """Push workspace files to a GitHub repository."""
+    session = get_agent_session_data(req.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        from deploy.github import push_to_github
+        result = push_to_github(
+            workspace=session.workspace,
+            repo_full_name=req.repo,
+            branch=req.branch,
+            commit_message=req.commit_message,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Deploy: Render ─────────────────────────────────────────────────────────
+
+
+class RenderDeployRequest(BaseModel):
+    session_id: str
+    service_name: str = ""
+    repo: str = ""  # GitHub repo to deploy from
+
+
+@app.post("/agent/deploy/render")
+def deploy_render(req: RenderDeployRequest):
+    """Deploy to Render from a GitHub repo."""
+    session = get_agent_session_data(req.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        from deploy.render import deploy_to_render
+        result = deploy_to_render(
+            workspace=session.workspace,
+            service_name=req.service_name,
+            repo=req.repo,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Static Files & UI ───────────────────────────────────────────────────────
