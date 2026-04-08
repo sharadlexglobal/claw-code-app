@@ -442,14 +442,17 @@ def _get_client() -> OpenAI:
 
 
 def _get_code0_client():
-    """Get code0.ai fallback client. Returns (client, model) or (None, None)."""
+    """Get code0.ai fallback client. Returns (client, model) or (None, None).
+    Checks env var CODE0_API_KEY first, then settings."""
     from settings import load_settings
     settings = load_settings()
-    if not settings.code0_api_key:
+    api_key = os.environ.get("CODE0_API_KEY", "") or settings.code0_api_key
+    if not api_key:
         return None, None
+    base_url = os.environ.get("CODE0_BASE_URL", "") or settings.code0_base_url or "https://code0.ai/v1"
     client = OpenAI(
-        base_url=settings.code0_base_url or "https://code0.ai/v1",
-        api_key=settings.code0_api_key,
+        base_url=base_url,
+        api_key=api_key,
         timeout=80.0,
     )
     model = settings.code0_default_model or "gemini-2.5-flash"

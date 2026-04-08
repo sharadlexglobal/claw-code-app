@@ -31,13 +31,15 @@ def _get_orbit_client() -> OpenAI:
 
 
 def _get_code0_client() -> Optional[OpenAI]:
-    """Get code0.ai fallback client. Returns None if not configured."""
+    """Get code0.ai fallback client. Returns None if not configured.
+    Checks env var CODE0_API_KEY first, then settings."""
     settings = load_settings()
-    api_key = settings.code0_api_key
+    api_key = os.environ.get("CODE0_API_KEY", "") or settings.code0_api_key
     if not api_key:
         return None
+    base_url = os.environ.get("CODE0_BASE_URL", "") or settings.code0_base_url or "https://code0.ai/v1"
     return OpenAI(
-        base_url=settings.code0_base_url or "https://code0.ai/v1",
+        base_url=base_url,
         api_key=api_key,
         timeout=90.0,
     )

@@ -671,7 +671,7 @@ def get_settings():
         "code0_base_url": s.code0_base_url or "https://code0.ai/v1",
         "code0_api_key": mask_token(s.code0_api_key),
         "code0_default_model": s.code0_default_model or "gemini-2.5-flash",
-        "code0_connected": bool(s.code0_api_key),
+        "code0_connected": bool(os.environ.get("CODE0_API_KEY") or s.code0_api_key),
         "content_llm_provider": s.content_llm_provider or "auto",
     }
 
