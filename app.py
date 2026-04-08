@@ -667,6 +667,11 @@ def get_settings():
         "r2_bucket_name": s.r2_bucket_name or "",
         "r2_public_url": s.r2_public_url or "",
         "r2_connected": bool(s.r2_account_id and s.r2_access_key and s.r2_secret_key),
+        # code0.ai fallback LLM
+        "code0_base_url": s.code0_base_url or "https://code0.ai/v1",
+        "code0_api_key": mask_token(s.code0_api_key),
+        "code0_default_model": s.code0_default_model or "gemini-2.5-flash",
+        "code0_connected": bool(s.code0_api_key),
     }
 
 

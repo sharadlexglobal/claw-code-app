@@ -15,7 +15,7 @@ SETTINGS_PATH = Path(os.environ.get("CLAW_SETTINGS_PATH", ".claw/settings.json")
 # Simple XOR-based obfuscation key (not cryptographic — sufficient for single-user server)
 _OBF_KEY = os.environ.get("CLAW_ENCRYPTION_KEY", "claw-code-obfuscation-key-2024")
 
-SENSITIVE_FIELDS = {"github_token", "render_api_key", "r2_access_key", "r2_secret_key"}
+SENSITIVE_FIELDS = {"github_token", "render_api_key", "r2_access_key", "r2_secret_key", "code0_api_key"}
 
 
 class Settings(BaseModel):
@@ -30,6 +30,10 @@ class Settings(BaseModel):
     r2_secret_key: Optional[str] = None
     r2_bucket_name: Optional[str] = None
     r2_public_url: Optional[str] = None
+    # code0.ai fallback LLM provider
+    code0_base_url: str = "https://code0.ai/v1"
+    code0_api_key: Optional[str] = None
+    code0_default_model: str = "gemini-2.5-flash"
 
 
 class SettingsUpdate(BaseModel):
@@ -44,6 +48,9 @@ class SettingsUpdate(BaseModel):
     r2_secret_key: Optional[str] = None
     r2_bucket_name: Optional[str] = None
     r2_public_url: Optional[str] = None
+    code0_base_url: Optional[str] = None
+    code0_api_key: Optional[str] = None
+    code0_default_model: Optional[str] = None
 
 
 def _obfuscate(text: str) -> str:

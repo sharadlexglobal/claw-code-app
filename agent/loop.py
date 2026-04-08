@@ -441,6 +441,21 @@ def _get_client() -> OpenAI:
     return OpenAI(base_url=ORBIT_BASE_URL, api_key=ORBIT_API_KEY, timeout=80.0)
 
 
+def _get_code0_client():
+    """Get code0.ai fallback client. Returns (client, model) or (None, None)."""
+    from settings import load_settings
+    settings = load_settings()
+    if not settings.code0_api_key:
+        return None, None
+    client = OpenAI(
+        base_url=settings.code0_base_url or "https://code0.ai/v1",
+        api_key=settings.code0_api_key,
+        timeout=80.0,
+    )
+    model = settings.code0_default_model or "gemini-2.5-flash"
+    return client, model
+
+
 def _run_design_agent(client, model: str, user_content) -> str:
     """Run the Design Agent to produce a visual design spec.
     Returns the design spec text, or empty string on failure.
@@ -464,9 +479,19 @@ def _run_design_agent(client, model: str, user_content) -> str:
                 print(f"[DESIGN-AGENT] Fallback design spec generated: {len(spec)} chars")
                 return spec
             except Exception as e2:
-                print(f"[DESIGN-AGENT] Fallback also failed: {e2}")
-                return ""
-        print(f"[DESIGN-AGENT] Error: {e}")
+                print(f"[DESIGN-AGENT] Orbit fallback also failed: {e2}")
+        # Try code0.ai as last resort
+        c0_client, c0_model = _get_code0_client()
+        if c0_client:
+            try:
+                print(f"[DESIGN-AGENT] Trying code0.ai ({c0_model})")
+                response = c0_client.chat.completions.create(model=c0_model, messages=messages, max_tokens=4096)
+                spec = response.choices[0].message.content or ""
+                print(f"[DESIGN-AGENT] code0.ai design spec generated: {len(spec)} chars")
+                return spec
+            except Exception as e3:
+                print(f"[DESIGN-AGENT] code0.ai also failed: {e3}")
+        print(f"[DESIGN-AGENT] All providers failed")
         return ""
 
 
@@ -586,7 +611,7 @@ def run_agent(
         iterations += 1
         session.total_iterations += 1
 
-        # Call the model (with fallback)
+        # Call the model (with fallback: Orbit primary → Orbit fallback → code0.ai)
         api_messages = [{"role": "system", "content": system_prompt}, *session.messages]
         try:
             response = client.chat.completions.create(model=model, messages=api_messages, max_tokens=MAX_TOKENS)
@@ -597,16 +622,46 @@ def run_agent(
                     model = FALLBACK_MODEL
                     response = client.chat.completions.create(model=FALLBACK_MODEL, messages=api_messages, max_tokens=MAX_TOKENS)
                 except Exception as e2:
+                    # Try code0.ai as last resort
+                    c0_client, c0_model = _get_code0_client()
+                    if c0_client:
+                        try:
+                            print(f"[AGENT] Trying code0.ai ({c0_model})")
+                            response = c0_client.chat.completions.create(model=c0_model, messages=api_messages, max_tokens=MAX_TOKENS)
+                            model = f"code0:{c0_model}"
+                        except Exception as e3:
+                            return {
+                                "session_id": session.session_id,
+                                "error": f"All LLM providers failed: {str(e3)}",
+                                "iterations": iterations,
+                                "tool_calls": all_tool_calls,
+                            }
+                    else:
+                        return {
+                            "session_id": session.session_id,
+                            "error": f"API error (both Orbit models failed, code0.ai not configured): {str(e2)}",
+                            "iterations": iterations,
+                            "tool_calls": all_tool_calls,
+                        }
+            else:
+                # Primary was already the fallback model — try code0.ai
+                c0_client, c0_model = _get_code0_client()
+                if c0_client:
+                    try:
+                        print(f"[AGENT] Orbit failed. Trying code0.ai ({c0_model})")
+                        response = c0_client.chat.completions.create(model=c0_model, messages=api_messages, max_tokens=MAX_TOKENS)
+                        model = f"code0:{c0_model}"
+                    except Exception as e3:
+                        return {
+                            "session_id": session.session_id,
+                            "error": f"All LLM providers failed: {str(e3)}",
+                            "iterations": iterations,
+                            "tool_calls": all_tool_calls,
+                        }
+                else:
                     return {
                         "session_id": session.session_id,
-                        "error": f"API error (both models failed): {str(e2)}",
-                        "iterations": iterations,
-                        "tool_calls": all_tool_calls,
-                    }
-            else:
-                return {
-                    "session_id": session.session_id,
-                    "error": f"API error: {str(e)}",
+                        "error": f"API error: {str(e)}",
                     "iterations": iterations,
                     "tool_calls": all_tool_calls,
                 }
@@ -773,6 +828,7 @@ def run_agent_stream(
 
         # Fallback if primary model failed
         if stream_error:
+            orbit_fallback_ok = False
             if model != FALLBACK_MODEL:
                 print(f"[AGENT-STREAM] Primary model {model} failed: {stream_error}. Falling back to {FALLBACK_MODEL}")
                 yield {"event": "text", "content": f"(Switching to fallback model {FALLBACK_MODEL}...)"}
@@ -792,12 +848,38 @@ def run_agent_stream(
                         yield {"event": "stream", "content": "".join(buffer)}
                     assistant_text = "".join(collected)
                     model = FALLBACK_MODEL
+                    orbit_fallback_ok = True
                 except Exception as e2:
-                    yield {"event": "error", "message": f"Both models failed: {str(e2)}"}
+                    print(f"[AGENT-STREAM] Orbit fallback also failed: {e2}")
+
+            # Try code0.ai as last resort
+            if not orbit_fallback_ok and not assistant_text:
+                c0_client, c0_model = _get_code0_client()
+                if c0_client:
+                    print(f"[AGENT-STREAM] Trying code0.ai ({c0_model})")
+                    yield {"event": "text", "content": f"(Switching to code0.ai {c0_model}...)"}
+                    try:
+                        collected = []
+                        stream = c0_client.chat.completions.create(model=c0_model, messages=api_messages, max_tokens=MAX_TOKENS, stream=True)
+                        buffer = []
+                        for chunk in stream:
+                            if chunk.choices and chunk.choices[0].delta.content:
+                                token = chunk.choices[0].delta.content
+                                collected.append(token)
+                                buffer.append(token)
+                                if sum(len(t) for t in buffer) >= 20:
+                                    yield {"event": "stream", "content": "".join(buffer)}
+                                    buffer = []
+                        if buffer:
+                            yield {"event": "stream", "content": "".join(buffer)}
+                        assistant_text = "".join(collected)
+                        model = f"code0:{c0_model}"
+                    except Exception as e3:
+                        yield {"event": "error", "message": f"All LLM providers failed: {str(e3)}"}
+                        return
+                else:
+                    yield {"event": "error", "message": f"Orbit failed and code0.ai not configured: {str(stream_error)}"}
                     return
-            else:
-                yield {"event": "error", "message": str(stream_error)}
-                return
         tool_calls = parse_tool_calls(assistant_text)
         prose = strip_tool_calls(assistant_text)
 

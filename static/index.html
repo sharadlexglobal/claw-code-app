@@ -637,6 +637,35 @@ The <b>Preview panel</b> on the right will show your website live as I build it!
     </div>
 
     <div class="settings-section">
+      <div class="settings-section-header"><span class="conn-status off" id="code0ConnDot"></span> &nbsp;code0.ai (Fallback LLM Provider)</div>
+      <div class="modal-field">
+        <label>API Key</label>
+        <div class="field-row">
+          <input type="password" id="settCode0Key" placeholder="sk-xxxxxxxxxxxx">
+          <button class="reveal-btn" onclick="toggleReveal('settCode0Key')">Show</button>
+        </div>
+        <div class="field-hint">Fallback LLM provider. Used when Orbit is down.</div>
+      </div>
+      <div class="modal-field">
+        <label>Base URL</label>
+        <input type="text" id="settCode0Url" placeholder="https://code0.ai/v1" value="https://code0.ai/v1">
+      </div>
+      <div class="modal-field">
+        <label>Default Model</label>
+        <select id="settCode0Model">
+          <option value="gemini-2.5-flash">gemini-2.5-flash (fast)</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro (quality)</option>
+          <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (cheapest)</option>
+          <option value="gemini-3-pro-preview">gemini-3-pro-preview (latest)</option>
+          <option value="gemini-3-flash-preview">gemini-3-flash-preview (latest fast)</option>
+          <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        </select>
+        <div class="field-hint">Model used when falling back to code0.ai</div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <div class="settings-section-header">&#129302; Agent Configuration</div>
       <div class="modal-field">
         <label>Default Model</label>
@@ -1430,10 +1459,16 @@ async function toggleSettingsModal() {
       document.getElementById('settR2Bucket').value = s.r2_bucket_name || '';
       document.getElementById('settR2PublicUrl').value = s.r2_public_url || '';
       _r2Connected = !!s.r2_connected;
+      // code0.ai fields
+      document.getElementById('settCode0Key').value = s.code0_connected ? s.code0_api_key : '';
+      document.getElementById('settCode0Key').placeholder = s.code0_connected ? s.code0_api_key : 'sk-xxxxxxxxxxxx';
+      document.getElementById('settCode0Url').value = s.code0_base_url || 'https://code0.ai/v1';
+      document.getElementById('settCode0Model').value = s.code0_default_model || 'gemini-2.5-flash';
       // Update connection dots
       document.getElementById('ghConnDot').className = `conn-status ${_ghConnected ? 'on' : 'off'}`;
       document.getElementById('renderConnDot').className = `conn-status ${_renderConnected ? 'on' : 'off'}`;
       document.getElementById('r2ConnDot').className = `conn-status ${_r2Connected ? 'on' : 'off'}`;
+      document.getElementById('code0ConnDot').className = `conn-status ${s.code0_connected ? 'on' : 'off'}`;
     } catch(e) { console.error('Failed to load settings:', e); }
   }
 }
@@ -1457,6 +1492,13 @@ async function saveSettings() {
   if (r2sk && !r2sk.startsWith('****')) payload.r2_secret_key = r2sk;
   if (r2bk) payload.r2_bucket_name = r2bk;
   if (r2url) payload.r2_public_url = r2url;
+  // code0.ai fields
+  const c0key = document.getElementById('settCode0Key').value.trim();
+  const c0url = document.getElementById('settCode0Url').value.trim();
+  const c0model = document.getElementById('settCode0Model').value;
+  if (c0key && !c0key.startsWith('****')) payload.code0_api_key = c0key;
+  if (c0url) payload.code0_base_url = c0url;
+  if (c0model) payload.code0_default_model = c0model;
   try {
     await fetch(`${API}/settings`, {
       method: 'PUT', headers: {'Content-Type':'application/json'},

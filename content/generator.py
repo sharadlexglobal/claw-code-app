@@ -1,4 +1,4 @@
-"""Content generation via Orbit API (OpenAI-compatible)."""
+"""Content generation via LLM API (Orbit primary, code0.ai fallback)."""
 
 from __future__ import annotations
 
@@ -26,7 +26,58 @@ def _get_orbit_client() -> OpenAI:
     return OpenAI(
         base_url=os.environ.get("ORBIT_BASE_URL", "https://api.orbit-provider.com/v1"),
         api_key=os.environ.get("ORBIT_API_KEY", ""),
+        timeout=60.0,
     )
+
+
+def _get_code0_client() -> Optional[OpenAI]:
+    """Get code0.ai fallback client. Returns None if not configured."""
+    settings = load_settings()
+    api_key = settings.code0_api_key
+    if not api_key:
+        return None
+    return OpenAI(
+        base_url=settings.code0_base_url or "https://code0.ai/v1",
+        api_key=api_key,
+        timeout=60.0,
+    )
+
+
+def _llm_call(messages: list[dict], model: str, temperature: float = 0.7, max_tokens: int = 4096) -> tuple[str, str]:
+    """Call LLM with Orbit-first, code0.ai-fallback strategy.
+    Returns (output_text, model_used).
+    """
+    settings = load_settings()
+
+    # Try Orbit first
+    orbit_key = os.environ.get("ORBIT_API_KEY", "")
+    if orbit_key:
+        try:
+            client = _get_orbit_client()
+            resp = client.chat.completions.create(
+                model=model, messages=messages,
+                temperature=temperature, max_tokens=max_tokens,
+            )
+            return (resp.choices[0].message.content or "", model)
+        except Exception as e:
+            print(f"[CONTENT] Orbit failed ({model}): {e}")
+
+    # Fallback to code0.ai
+    code0 = _get_code0_client()
+    if code0:
+        code0_model = settings.code0_default_model or "gemini-2.5-flash"
+        try:
+            print(f"[CONTENT] Falling back to code0.ai ({code0_model})")
+            resp = code0.chat.completions.create(
+                model=code0_model, messages=messages,
+                temperature=temperature, max_tokens=max_tokens,
+            )
+            return (resp.choices[0].message.content or "", f"code0:{code0_model}")
+        except Exception as e2:
+            print(f"[CONTENT] code0.ai also failed ({code0_model}): {e2}")
+            raise RuntimeError(f"All LLM providers failed. Orbit: {orbit_key and 'configured' or 'not configured'}. code0.ai: {e2}")
+
+    raise RuntimeError("No LLM provider configured. Set ORBIT_API_KEY or code0.ai API key in Settings.")
 
 
 def _extract_topic(raw_input: str) -> str:
@@ -98,7 +149,6 @@ def generate_single(
     """Generate a single content piece."""
     settings = load_settings()
     model = model or settings.default_model
-    client = _get_orbit_client()
 
     # Check for active custom prompt
     custom_prompt = get_active_prompt_text(persona_id, content_type)
@@ -111,17 +161,12 @@ def generate_single(
 
     user_msg = f"Legal Domain: {legal_domain.replace('_', ' ').title()}\n\nRaw Input:\n{raw_input}"
 
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_msg},
-        ],
-        temperature=0.7,
-        max_tokens=4096,
-    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_msg},
+    ]
 
-    raw_output = resp.choices[0].message.content or ""
+    raw_output, _model_used = _llm_call(messages, model)
     return _parse_content_piece(content_type, raw_output)
 
 
@@ -175,33 +220,20 @@ def test_prompt(
 ) -> PromptTestResponse:
     """Test a prompt without saving — returns raw LLM output."""
     settings = load_settings()
-    model_used = model or settings.default_model
-    client = _get_orbit_client()
+    model_req = model or settings.default_model
 
     system_prompt = build_full_prompt(persona_id, content_type, prompt_text)
     user_msg = f"Raw Input:\n{sample_input}"
 
-    resp = client.chat.completions.create(
-        model=model_used,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_msg},
-        ],
-        temperature=0.7,
-        max_tokens=4096,
-    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_msg},
+    ]
 
-    output = resp.choices[0].message.content or ""
-    usage = None
-    if resp.usage:
-        usage = {
-            "prompt_tokens": resp.usage.prompt_tokens,
-            "completion_tokens": resp.usage.completion_tokens,
-            "total_tokens": resp.usage.total_tokens,
-        }
+    output, model_used = _llm_call(messages, model_req)
 
     return PromptTestResponse(
         output=output,
         model_used=model_used,
-        usage=usage,
+        usage=None,
     )
