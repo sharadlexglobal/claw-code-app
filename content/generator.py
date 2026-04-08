@@ -26,7 +26,7 @@ def _get_orbit_client() -> OpenAI:
     return OpenAI(
         base_url=os.environ.get("ORBIT_BASE_URL", "https://api.orbit-provider.com/v1"),
         api_key=os.environ.get("ORBIT_API_KEY", ""),
-        timeout=60.0,
+        timeout=15.0,
     )
 
 
@@ -39,17 +39,32 @@ def _get_code0_client() -> Optional[OpenAI]:
     return OpenAI(
         base_url=settings.code0_base_url or "https://code0.ai/v1",
         api_key=api_key,
-        timeout=60.0,
+        timeout=90.0,
     )
 
 
 def _llm_call(messages: list[dict], model: str, temperature: float = 0.7, max_tokens: int = 4096) -> tuple[str, str]:
-    """Call LLM with Orbit-first, code0.ai-fallback strategy.
+    """Call LLM with provider strategy based on content_llm_provider setting.
+    Modes: "auto" (Orbit→code0 fallback), "orbit" (Orbit only), "code0" (code0 only).
     Returns (output_text, model_used).
     """
     settings = load_settings()
+    provider = settings.content_llm_provider or "auto"
 
-    # Try Orbit first
+    # code0-only mode — skip Orbit entirely
+    if provider == "code0":
+        code0 = _get_code0_client()
+        if not code0:
+            raise RuntimeError("code0.ai selected but API key not configured in Settings.")
+        code0_model = settings.code0_default_model or "gemini-2.5-flash"
+        print(f"[CONTENT] Using code0.ai directly ({code0_model})")
+        resp = code0.chat.completions.create(
+            model=code0_model, messages=messages,
+            temperature=temperature, max_tokens=max_tokens,
+        )
+        return (resp.choices[0].message.content or "", f"code0:{code0_model}")
+
+    # Try Orbit (for "auto" and "orbit" modes)
     orbit_key = os.environ.get("ORBIT_API_KEY", "")
     if orbit_key:
         try:
@@ -61,8 +76,10 @@ def _llm_call(messages: list[dict], model: str, temperature: float = 0.7, max_to
             return (resp.choices[0].message.content or "", model)
         except Exception as e:
             print(f"[CONTENT] Orbit failed ({model}): {e}")
+            if provider == "orbit":
+                raise RuntimeError(f"Orbit failed and provider set to orbit-only: {e}")
 
-    # Fallback to code0.ai
+    # Fallback to code0.ai (auto mode)
     code0 = _get_code0_client()
     if code0:
         code0_model = settings.code0_default_model or "gemini-2.5-flash"
@@ -75,7 +92,7 @@ def _llm_call(messages: list[dict], model: str, temperature: float = 0.7, max_to
             return (resp.choices[0].message.content or "", f"code0:{code0_model}")
         except Exception as e2:
             print(f"[CONTENT] code0.ai also failed ({code0_model}): {e2}")
-            raise RuntimeError(f"All LLM providers failed. Orbit: {orbit_key and 'configured' or 'not configured'}. code0.ai: {e2}")
+            raise RuntimeError(f"All LLM providers failed. code0.ai: {e2}")
 
     raise RuntimeError("No LLM provider configured. Set ORBIT_API_KEY or code0.ai API key in Settings.")
 

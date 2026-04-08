@@ -663,6 +663,15 @@ The <b>Preview panel</b> on the right will show your website live as I build it!
         </select>
         <div class="field-hint">Model used when falling back to code0.ai</div>
       </div>
+      <div class="modal-field">
+        <label>Content Factory Provider</label>
+        <select id="settContentProvider">
+          <option value="auto">Auto (Orbit → code0.ai fallback)</option>
+          <option value="code0">code0.ai only (skip Orbit)</option>
+          <option value="orbit">Orbit only</option>
+        </select>
+        <div class="field-hint">Which LLM to use for content generation. Use "code0.ai only" if Orbit is down.</div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -1464,6 +1473,7 @@ async function toggleSettingsModal() {
       document.getElementById('settCode0Key').placeholder = s.code0_connected ? s.code0_api_key : 'sk-xxxxxxxxxxxx';
       document.getElementById('settCode0Url').value = s.code0_base_url || 'https://code0.ai/v1';
       document.getElementById('settCode0Model').value = s.code0_default_model || 'gemini-2.5-flash';
+      document.getElementById('settContentProvider').value = s.content_llm_provider || 'auto';
       // Update connection dots
       document.getElementById('ghConnDot').className = `conn-status ${_ghConnected ? 'on' : 'off'}`;
       document.getElementById('renderConnDot').className = `conn-status ${_renderConnected ? 'on' : 'off'}`;
@@ -1499,6 +1509,7 @@ async function saveSettings() {
   if (c0key && !c0key.startsWith('****')) payload.code0_api_key = c0key;
   if (c0url) payload.code0_base_url = c0url;
   if (c0model) payload.code0_default_model = c0model;
+  payload.content_llm_provider = document.getElementById('settContentProvider').value;
   try {
     await fetch(`${API}/settings`, {
       method: 'PUT', headers: {'Content-Type':'application/json'},

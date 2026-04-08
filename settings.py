@@ -34,6 +34,8 @@ class Settings(BaseModel):
     code0_base_url: str = "https://code0.ai/v1"
     code0_api_key: Optional[str] = None
     code0_default_model: str = "gemini-2.5-flash"
+    # Content Factory LLM provider: "auto" (Orbit→code0), "orbit", "code0"
+    content_llm_provider: str = "auto"
 
 
 class SettingsUpdate(BaseModel):
@@ -51,6 +53,7 @@ class SettingsUpdate(BaseModel):
     code0_base_url: Optional[str] = None
     code0_api_key: Optional[str] = None
     code0_default_model: Optional[str] = None
+    content_llm_provider: Optional[str] = None
 
 
 def _obfuscate(text: str) -> str:
