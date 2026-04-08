@@ -2,3 +2,5 @@ __pycache__/
 archive/
 .omx/
 .clawd-agents/
+remotion/node_modules/
+remotion/.remotion/

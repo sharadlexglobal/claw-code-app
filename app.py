@@ -928,6 +928,35 @@ def content_r2_status():
     return check_connection()
 
 
+class CarouselRenderRequest(BaseModel):
+    carousel_text: str
+    content_id: Optional[str] = None
+
+
+@app.post("/content/carousel/render")
+def content_carousel_render(req: CarouselRenderRequest):
+    """Render carousel text into PNG slides using Remotion."""
+    from content.carousel_renderer import render_carousel
+    output_dir = None
+    if req.content_id:
+        output_dir = f".claw/library/{req.content_id}/carousel"
+    result = render_carousel(req.carousel_text, output_dir)
+    return result
+
+
+@app.get("/content/carousel/slide/{content_id}/{filename}")
+def content_carousel_slide(content_id: str, filename: str):
+    """Serve a rendered carousel slide PNG."""
+    slide_path = Path(f".claw/library/{content_id}/carousel/{filename}")
+    if not slide_path.exists():
+        raise HTTPException(status_code=404, detail="Slide not found")
+    return Response(
+        content=slide_path.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 # ── Deploy: GitHub Push ────────────────────────────────────────────────────
 
 

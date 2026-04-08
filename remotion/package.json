@@ -1,0 +1,22 @@
+{
+  "name": "sulah-carousel-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "node render.mjs",
+    "ensure-browser": "npx remotion browser ensure"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.446",
+    "@remotion/cli": "4.0.446",
+    "@remotion/renderer": "4.0.446",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.446"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
